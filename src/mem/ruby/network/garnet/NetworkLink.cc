@@ -125,6 +125,12 @@ NetworkLink::functionalRead(Packet *pkt, WriteMask &mask)
     return linkBuffer.functionalRead(pkt, mask);
 }
 
+bool
+NetworkLink::functionalRead(Packet *pkt)
+{
+    return linkBuffer.functionalRead(pkt);
+}
+
 uint32_t
 NetworkLink::functionalWrite(Packet *pkt)
 {

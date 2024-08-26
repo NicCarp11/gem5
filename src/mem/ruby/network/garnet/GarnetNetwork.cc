@@ -642,6 +642,33 @@ GarnetNetwork::functionalRead(Packet *pkt, WriteMask &mask)
     return read;
 }
 
+bool
+GarnetNetwork::functionalRead(Packet *pkt)
+{
+    bool read = false;
+    for (unsigned int i = 0; i < m_routers.size(); i++) {
+        if (m_routers[i]->functionalRead(pkt))
+            read = true;
+    }
+
+    for (unsigned int i = 0; i < m_nis.size(); ++i) {
+        if (m_nis[i]->functionalRead(pkt))
+            read = true;
+    }
+
+    for (unsigned int i = 0; i < m_networklinks.size(); ++i) {
+        if (m_networklinks[i]->functionalRead(pkt))
+            read = true;
+    }
+
+    for (unsigned int i = 0; i < m_networkbridges.size(); ++i) {
+        if (m_networkbridges[i]->functionalRead(pkt))
+            read = true;
+    }
+
+    return read;
+}
+
 uint32_t
 GarnetNetwork::functionalWrite(Packet *pkt)
 {

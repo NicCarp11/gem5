@@ -178,6 +178,12 @@ OutputUnit::functionalRead(Packet *pkt, WriteMask &mask)
     return outBuffer.functionalRead(pkt, mask);
 }
 
+bool
+OutputUnit::functionalRead(Packet *pkt)
+{
+    return outBuffer.functionalRead(pkt);
+}
+
 uint32_t
 OutputUnit::functionalWrite(Packet *pkt)
 {

@@ -685,6 +685,23 @@ NetworkInterface::functionalRead(Packet *pkt, WriteMask &mask)
     return read;
 }
 
+bool
+NetworkInterface::functionalRead(Packet *pkt)
+{
+    bool read = false;
+    for (auto& ni_out_vc : niOutVcs) {
+        if (ni_out_vc.functionalRead(pkt))
+            read = true;
+    }
+
+    for (auto &oPort: outPorts) {
+        if (oPort->outFlitQueue()->functionalRead(pkt))
+            read = true;
+    }
+
+    return read;
+}
+
 uint32_t
 NetworkInterface::functionalWrite(Packet *pkt)
 {

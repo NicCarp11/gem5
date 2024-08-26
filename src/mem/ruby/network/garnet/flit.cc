@@ -133,6 +133,14 @@ flit::functionalRead(Packet *pkt, WriteMask &mask)
 }
 
 bool
+flit::functionalRead(Packet *pkt)
+{
+    Message *msg = m_msg_ptr.get();
+    return msg->functionalRead(pkt);
+}
+
+
+bool
 flit::functionalWrite(Packet *pkt)
 {
     Message *msg = m_msg_ptr.get();

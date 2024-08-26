@@ -163,6 +163,18 @@ InputUnit::functionalRead(Packet *pkt, WriteMask &mask)
     return read;
 }
 
+bool
+InputUnit::functionalRead(Packet *pkt)
+{
+    bool read = false;
+    for (auto& virtual_channel : virtualChannels) {
+        if (virtual_channel.functionalRead(pkt))
+            read = true;
+    }
+
+    return read;
+}
+
 uint32_t
 InputUnit::functionalWrite(Packet *pkt)
 {

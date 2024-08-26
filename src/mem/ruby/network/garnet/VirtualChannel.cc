@@ -81,6 +81,13 @@ VirtualChannel::functionalRead(Packet *pkt, WriteMask &mask)
     return inputBuffer.functionalRead(pkt, mask);
 }
 
+bool
+VirtualChannel::functionalRead(Packet *pkt)
+{
+    return inputBuffer.functionalRead(pkt);
+}
+
+
 uint32_t
 VirtualChannel::functionalWrite(Packet *pkt)
 {
