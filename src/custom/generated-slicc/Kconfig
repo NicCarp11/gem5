@@ -1,0 +1,10 @@
+config PROTOCOL
+    default "GENERATED" if RUBY_PROTOCOL_GENERATED
+    default "MOESI_CMP_directory_edit" if RUBY_PROTOCOL_MOESI_CMP_DIRECTORY_EDIT
+
+cont_choice "Ruby protocol"
+    config RUBY_PROTOCOL_GENERATED
+        bool "GENERATED"
+    config RUBY_PROTOCOL_MOESI_CMP_DIRECTORY_EDIT
+        bool "MOESI CMP directory edit"
+endchoice

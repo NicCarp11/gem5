@@ -97,7 +97,7 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
     {  55, "getsockopt", getsockoptFunc },
     {  56, "clone", cloneFunc<X86Linux64> },
     {  57, "fork" },
-    {  58, "vfork" },
+    {  58, "vfork", ignoreFunc },
     {  59, "execve", execveFunc<X86Linux64> },
     {  60, "exit", exitFunc },
     {  61, "wait4", wait4Func<X86Linux64> },
@@ -124,7 +124,7 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
 #endif
     {  79, "getcwd", getcwdFunc },
     {  80, "chdir", chdirFunc },
-    {  81, "fchdir" },
+    {  81, "fchdir", ignoreFunc },
     {  82, "rename", renameFunc },
     {  83, "mkdir", mkdirFunc },
     {  84, "rmdir", rmdirFunc },
@@ -185,13 +185,13 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
     { 139, "sysfs" },
     { 140, "getpriority" },
     { 141, "setpriority", ignoreFunc },
-    { 142, "sched_setparam" },
-    { 143, "sched_getparam" },
-    { 144, "sched_setscheduler" },
-    { 145, "sched_getscheduler" },
-    { 146, "sched_get_priority_max" },
-    { 147, "sched_get_priority_min" },
-    { 148, "sched_rr_get_interval" },
+    { 142, "sched_setparam", ignoreFunc },
+    { 143, "sched_getparam", ignoreFunc },
+    { 144, "sched_setscheduler", ignoreFunc },
+    { 145, "sched_getscheduler", ignoreFunc },
+    { 146, "sched_get_priority_max", ignoreFunc },
+    { 147, "sched_get_priority_min", ignoreFunc },
+    { 148, "sched_rr_get_interval", ignoreFunc },
     { 149, "mlock" },
     { 150, "munlock" },
     { 151, "mlockall", ignoreFunc },
@@ -406,6 +406,5 @@ SyscallDescTable<EmuLinux::SyscallABI64> EmuLinux::syscallDescs64 = {
     { 449, "futex_waitv" },
     { 450, "set_mempolicy_home_node" }
 };
-
 } // namespace X86ISA
 } // namespace gem5

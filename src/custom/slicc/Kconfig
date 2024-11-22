@@ -1,0 +1,7 @@
+config PROTOCOL
+    default "CUSTOM_MESI" if RUBY_PROTOCOL_CUSTOM_MESI
+
+cont_choice "Ruby protocol"
+    config RUBY_PROTOCOL_CUSTOM_MESI
+        bool "CUSTOM_MESI"
+endchoice

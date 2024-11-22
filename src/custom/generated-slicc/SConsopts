@@ -1,0 +1,5 @@
+Import('*')
+
+main.Append(ALL_PROTOCOLS=['GENERATED'])
+
+main.Append(PROTOCOL_DIRS=[Dir('.')])

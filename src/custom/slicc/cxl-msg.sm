@@ -1,0 +1,56 @@
+enumeration(CxlCoherenceRequestType, desc="...") {
+  Get,      desc="Get a cacheline";
+  Put, desc="Request a writeback";
+  WriteBack, desc="Write back with data";
+  WriteBackClean, desc="Write back without data";
+}
+
+enumeration(CxlCoherenceResponseType, desc="...") {
+  Data, desc="Data response";
+  Inv, desc="Invalidate";
+  WriteBackAck, desc="Write back acknowledgement";
+}
+
+structure(CxlRequestMsg, desc="...", interface="Message") {
+  Addr addr,              desc="Physical address for this request";
+  CxlCoherenceRequestType Type,    desc="Type of request (GetS, GetX, PutX, etc)";
+  MachineID Requestor      ,    desc="What component request";
+  NetDest Destination,          desc="What components receive the request, includes MachineType and num";
+  MessageSizeType MessageSize,  desc="size category of the message";
+  DataBlock DataBlk,            desc="Data for the cache line (if PUTX)";
+
+  bool functionalRead(Packet *pkt) {
+    return false;
+  }
+
+  bool functionalWrite(Packet *pkt) {
+    // No check on message type required since the protocol should
+    // read data from those messages that contain the block
+    return testAndWrite(addr, DataBlk, pkt);
+  }
+}
+
+// ResponseMsg
+structure(CxlResponseMsg, desc="...", interface="Message") {
+  Addr addr,              desc="Physical address for this request";
+  CxlCoherenceResponseType Type,   desc="Type of response (Ack, Data, etc)";
+  MachineID Sender,             desc="What component sent the data";
+  NetDest Destination,          desc="Node to whom the data is sent";
+  DataBlock DataBlk,            desc="Data for the cache line";
+  MessageSizeType MessageSize,  desc="size category of the message";
+
+  bool functionalRead(Packet *pkt) {
+    // Valid data block is only present in message with following types
+    if (Type == CxlCoherenceResponseType:Data) {
+        return testAndRead(addr, DataBlk, pkt);
+    }
+
+    return false;
+  }
+
+  bool functionalWrite(Packet *pkt) {
+    // No check on message type required since the protocol should
+    // read data from those messages that contain the block
+    return testAndWrite(addr, DataBlk, pkt);
+  }
+}
