@@ -1,0 +1,36 @@
+//Backend.SLICC.ModularSLICC.msg.GenMsgEnum
+enumeration(CoherenceMessageType, desc="Types of coherence messages") {
+  GetRL1C1, desc="GetRL1C1";
+  GetR_AckL1C1, desc="GetR_AckL1C1";
+  GetVL1C1, desc="GetVL1C1";
+  GetV_AckL1C1, desc="GetV_AckL1C1";
+  PutRL1C1, desc="PutRL1C1";
+  PutR_AckL1C1, desc="PutR_AckL1C1";
+  PutVL1C1, desc="PutVL1C1";
+  PutV_AckL1C1, desc="PutV_AckL1C1";
+}
+
+//Backend.SLICC.ModularSLICC.msg.GenMsgStruct
+structure(CoherenceMessage, desc="...", interface="Message") {
+  Addr LineAddress,             desc="Physical address for this request";
+  CoherenceMessageType Type,   desc="Type of request (GetS, GetM, PutM, etc)";
+  MachineID Sender,            desc="Node who initiated the request";
+  NetDest Destination,         desc="Multicast destination mask";
+  MessageSizeType MessageSize, desc="size category of the message";
+  DataBlock cl, desc="Cache line / Data cl";
+  Packet *pkt
+
+
+  bool functionalRead(Packet *pkt) {
+    // A check on message type should appear here so that only those
+    // messages that contain data
+    return testAndRead(LineAddress, cl, pkt);
+  }
+
+  bool functionalWrite(Packet *pkt) {
+    // No check on message type required since the protocol should read
+    // data block from only those messages that contain valid data
+    return testAndWrite(LineAddress, cl, pkt);
+  }
+}
+

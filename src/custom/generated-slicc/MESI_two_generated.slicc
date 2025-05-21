@@ -1,0 +1,6 @@
+protocol "MESI_two_generated";
+include "RubySlicc_interfaces.slicc";
+include "MESI_MESI_msg.sm";
+include "MESI_MESI_cache1-real.sm";
+include "MESI_MESI_dir.sm";
+include "MESI_MESI_proxy.sm";

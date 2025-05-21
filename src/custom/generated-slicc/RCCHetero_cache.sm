@@ -1,0 +1,728 @@
+//Backend.SLICC.ModularSLICC.cache.GenCacheHeader
+machine(MachineType:L1Cache, "Cache controller")
+: Sequencer *sequencer;
+  CacheMemory *cache;
+  bool send_evictions;
+
+  // The following latencies should be exposed as command-line parameters in a future update
+  Cycles responseLatency := 1;
+  Cycles recycleLatency := 10;
+
+  // Required networks
+  MessageBuffer *mandatoryQueue;
+
+  // Dynamic networks
+  MessageBuffer *fwdTo, network="To", virtual_network="0", vnet_type="fwd";
+  MessageBuffer *fwdFrom, network="From", virtual_network="0", vnet_type="fwd";
+  MessageBuffer *respTo, network="To", virtual_network="1", vnet_type="resp";
+  MessageBuffer *respFrom, network="From", virtual_network="1", vnet_type="resp";
+  MessageBuffer *reqTo, network="To", virtual_network="2", vnet_type="req";
+  MessageBuffer *reqFrom, network="From", virtual_network="2", vnet_type="req";
+
+{
+  //Backend.SLICC.ModularSLICC.cache.GenCacheStateDecl
+  state_declaration(State, desc="L0Cache states", default="L0Cache_State_I") {
+    I, AccessPermission:Invalid, desc="... TODO ...";
+    I_acquire, AccessPermission:Busy, desc="... TODO ...";
+    I_acquire_GetV_Ack, AccessPermission:Busy, desc="... TODO ...";
+    I_load, AccessPermission:Busy, desc="... TODO ...";
+    I_release, AccessPermission:Busy, desc="... TODO ...";
+    I_release_rel_event, AccessPermission:Busy, desc="... TODO ...";
+    I_release_rel_event_GetR_Ack, AccessPermission:Busy, desc="... TODO ...";
+    I_store, AccessPermission:Busy, desc="... TODO ...";
+    VC, AccessPermission:Read_Write, desc="... TODO ...";
+    VC_acquire, AccessPermission:Busy, desc="... TODO ...";
+    VC_acquire_GetV_Ack, AccessPermission:Busy, desc="... TODO ...";
+    VC_release, AccessPermission:Busy, desc="... TODO ...";
+    VC_release_rel_event, AccessPermission:Busy, desc="... TODO ...";
+    VD, AccessPermission:Read_Write, desc="... TODO ...";
+    VD_acquire, AccessPermission:Busy, desc="... TODO ...";
+    VD_acquire_GetV_Ack, AccessPermission:Busy, desc="... TODO ...";
+    VD_evict, AccessPermission:Busy, desc="... TODO ...";
+    VD_rel_event, AccessPermission:Busy, desc="... TODO ...";
+    VD_release, AccessPermission:Busy, desc="... TODO ...";
+    VD_release_rel_event, AccessPermission:Busy, desc="... TODO ...";
+  }
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheEvents
+  enumeration(Event, desc="Cache events") {
+    VCloadVCEvent, desc="VC->VC upon local load hit.";
+    VDloadVDEvent, desc="VD->VD upon local load hit.";
+    VCstoreVDEvent, desc="VC->VD upon local store hit.";
+    VDstoreVDEvent, desc="VD->VD upon local store hit.";
+    Stallmandatory_in, desc="Stall the mandatory_in port.";
+    
+    externalloadVCfwdfrom_in, desc="Remote load hit ending in state VC. Should pop fwdfrom_in.";
+    externalloadVDfwdfrom_in, desc="Remote load hit ending in state VD. Should pop fwdfrom_in.";
+    externalstoreVDfwdfrom_in, desc="Remote store hit ending in state VD. Should pop fwdfrom_in.";
+    deallocfwdfrom_in, desc="Event indicating the cache line + tbe should be deallocated following a message received on fwdfrom_in.";
+    Stallfwdfrom_in, desc="Stall the fwdfrom_in port.";
+    
+    externalloadVCreqfrom_in, desc="Remote load hit ending in state VC. Should pop reqfrom_in.";
+    externalloadVDreqfrom_in, desc="Remote load hit ending in state VD. Should pop reqfrom_in.";
+    externalstoreVDreqfrom_in, desc="Remote store hit ending in state VD. Should pop reqfrom_in.";
+    deallocreqfrom_in, desc="Event indicating the cache line + tbe should be deallocated following a message received on reqfrom_in.";
+    Stallreqfrom_in, desc="Stall the reqfrom_in port.";
+    
+    externalloadVCrespfrom_in, desc="Remote load hit ending in state VC. Should pop respfrom_in.";
+    externalloadVDrespfrom_in, desc="Remote load hit ending in state VD. Should pop respfrom_in.";
+    externalstoreVDrespfrom_in, desc="Remote store hit ending in state VD. Should pop respfrom_in.";
+    deallocrespfrom_in, desc="Event indicating the cache line + tbe should be deallocated following a message received on respfrom_in.";
+    Stallrespfrom_in, desc="Stall the respfrom_in port.";
+    
+    allocI_acquire, desc="Event indicating cache entry alloc before moving to I_acquire.";
+    allocI_load, desc="Event indicating cache entry alloc before moving to I_load.";
+    allocI_store, desc="Event indicating cache entry alloc before moving to I_store.";
+    allocTBE, desc="Allocate a new TBE.";
+    
+    deallocTBE, desc="Deallocate a TBE.";
+    
+    Progress, desc="Progress, please!";
+  }
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheStruct
+  structure(Entry, desc="Stored variables of the Cache machine", interface="AbstractCacheEntry") {
+    State CacheState, desc="Cache state";
+  
+    DataBlock cl, desc="... TODO ...";
+  }
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheTBE
+  structure(TBE, desc="TBE entries for L0Cache machine") {
+    State TBEState,       desc="Transient State";
+  
+  }
+  
+  structure(TBETable, external="yes"){
+    TBE lookup(Addr);
+    void allocate(Addr);
+    void deallocate(Addr);
+    bool isPresent(Addr);
+    bool areNSlotsAvailable(int, Tick);
+  }
+  
+  TBETable TBEs, template="<L0Cache_TBE>", constructor="m_number_of_TBEs";
+  
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheStaticFns
+  Tick clockEdge();
+  Tick cyclesToTicks(Cycles c);
+  Cycles ticksToCycles(Tick t);
+  void set_cache_entry(AbstractCacheEntry a);
+  void unset_cache_entry();
+  void set_tbe(TBE a);
+  void unset_tbe();
+  void wakeUpAllBuffers(Addr a);
+  
+  MachineID mapAddressToMachine(Addr addr, MachineType mtype);
+  
+  Entry getEntry(Addr LineAddress), return_by_pointer="yes" {
+    return static_cast(Entry, "pointer", cache.lookup(LineAddress));
+  }
+  
+  State getState(TBE tbe, Entry cache_entry, Addr LineAddress) {
+    if (is_valid(tbe)) {
+      return tbe.TBEState;
+    } else if (is_valid(cache_entry)) {
+      return cache_entry.CacheState;
+    } else {
+      return State:I;
+    }
+  }
+  
+  void setState(TBE tbe, Entry cache_entry, Addr LineAddress, State state) {
+    DPRINTF(RubySlicc, "%s -> %s (addr: %#x)\n", getState(tbe, cache_entry, LineAddress), state, LineAddress);
+    //if (state != getState(tbe, cache_entry, LineAddress)) {
+    //  wakeUpAllBuffers(LineAddress);
+    //}
+    if (is_valid(tbe)) {
+      tbe.TBEState := state;
+    }
+    if (is_valid(cache_entry)) {
+      cache_entry.CacheState := state;
+    }
+  }
+  
+  AccessPermission getAccessPermission(Addr LineAddress) {
+    TBE tbe := TBEs[LineAddress];
+    if (is_valid(tbe)) {
+      return L0Cache_State_to_permission(tbe.TBEState);
+    }
+    Entry cache_entry := getEntry(LineAddress);
+    if (is_valid(cache_entry)) {
+      return L0Cache_State_to_permission(cache_entry.CacheState);
+    } else {
+      return AccessPermission:NotPresent;
+    }
+  }
+  
+  void setAccessPermission(Entry cache_entry, Addr LineAddress, State state) {
+    if (is_valid(cache_entry)) {
+      cache_entry.changePermission(L0Cache_State_to_permission(state));
+    }
+  }
+  
+  void functionalRead(Addr addr, Packet *pkt) {
+    testAndRead(addr, getEntry(addr).cl, pkt);
+  }
+  
+  int functionalWrite(Addr addr, Packet *pkt) {
+    return 0 + testAndWrite(addr, getEntry(addr).cl, pkt);
+  }
+  
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheOutPorts
+  out_port(fwdto_out, CoherenceMessage, fwdTo);
+  out_port(reqto_out, CoherenceMessage, reqTo);
+  out_port(respto_out, CoherenceMessage, respTo);
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheInPorts
+  in_port(fwdfrom_in, CoherenceMessage, fwdFrom) {
+    if (fwdfrom_in.isReady(clockEdge())) {
+      peek (fwdfrom_in, CoherenceMessage, block_on="LineAddress") {
+        Addr LineAddress := in_msg.LineAddress;
+        TBE tbe := TBEs[LineAddress];
+        State st := getState(tbe, getEntry(LineAddress), LineAddress);
+        DPRINTF(RubySlicc, "fwdfrom_in: %s %s %s (addr: %#x)\n", in_msg.Type, in_msg.Sender, st, LineAddress);
+        if (st == State:I_release_rel_event_GetR_Ack) {
+          if (in_msg.Type == CoherenceMessageType:PutR_AckL1C1) {
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VC);
+            DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+            fwdfrom_in.dequeue(clockEdge());
+            trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+          
+        } else if (st == State:VC_release_rel_event) {      
+          if (in_msg.Type == CoherenceMessageType:PutV_AckL1C1) {
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VC);
+            DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+            fwdfrom_in.dequeue(clockEdge());
+            trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:VD_evict) {      
+          if (in_msg.Type == CoherenceMessageType:PutV_AckL1C1) {
+            setState(tbe, getEntry(LineAddress), LineAddress, State:I);
+            trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:VD_rel_event) {      
+          if (in_msg.Type == CoherenceMessageType:PutV_AckL1C1) {
+            setState(tbe, getEntry(LineAddress), LineAddress, State:I);
+            trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:VD_release_rel_event) {      
+          if (in_msg.Type == CoherenceMessageType:PutV_AckL1C1) {
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VC);
+            DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+            fwdfrom_in.dequeue(clockEdge());
+            trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else {
+          trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+        }
+      }
+    }
+  }
+  
+  in_port(respfrom_in, CoherenceMessage, respFrom) {
+    if (respfrom_in.isReady(clockEdge())) {
+      peek (respfrom_in, CoherenceMessage, block_on="LineAddress") {
+        Addr LineAddress := in_msg.LineAddress;
+        TBE tbe := TBEs[LineAddress];
+        State st := getState(tbe, getEntry(LineAddress), LineAddress);
+        DPRINTF(RubySlicc, "respfrom_in: %s %s %s (addr: %#x)\n", in_msg.Type, in_msg.Sender, st, LineAddress);
+        if (st == State:I_acquire) {
+          if (in_msg.Type == CoherenceMessageType:GetV_AckL1C1) {
+            getEntry(LineAddress).cl := in_msg.cl;
+            setState(tbe, getEntry(LineAddress), LineAddress, State:I_acquire_GetV_Ack);
+            DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+            respfrom_in.dequeue(clockEdge());
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:I_load) {      
+          if (in_msg.Type == CoherenceMessageType:GetV_AckL1C1) {
+            getEntry(LineAddress).cl := in_msg.cl;
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VC);
+            trigger(Event:externalloadVCrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:I_release_rel_event) {      
+          if (in_msg.Type == CoherenceMessageType:GetR_AckL1C1) {
+            getEntry(LineAddress).cl := in_msg.cl;
+            enqueue(respto_out, CoherenceMessage, responseLatency) {
+              out_msg.LineAddress := LineAddress;
+              out_msg.MessageSize := MessageSizeType:Data;
+              out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+              out_msg.Type := CoherenceMessageType:PutRL1C1;
+              out_msg.Sender := machineID;
+              out_msg.cl := getEntry(LineAddress).cl;
+            }
+            setState(tbe, getEntry(LineAddress), LineAddress, State:I_release_rel_event_GetR_Ack);
+            DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+            respfrom_in.dequeue(clockEdge());
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:I_store) {      
+          if (in_msg.Type == CoherenceMessageType:GetV_AckL1C1) {
+            getEntry(LineAddress).cl := in_msg.cl;
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VD);
+            trigger(Event:externalstoreVDrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:VC_acquire) {      
+          if (in_msg.Type == CoherenceMessageType:GetV_AckL1C1) {
+            getEntry(LineAddress).cl := in_msg.cl;
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VC_acquire_GetV_Ack);
+            DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+            respfrom_in.dequeue(clockEdge());
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else if (st == State:VD_acquire) {      
+          if (in_msg.Type == CoherenceMessageType:GetV_AckL1C1) {
+            getEntry(LineAddress).cl := in_msg.cl;
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VD_acquire_GetV_Ack);
+            DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+            respfrom_in.dequeue(clockEdge());
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else {
+          trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+        }
+      }
+    }
+  }
+  
+  in_port(reqfrom_in, CoherenceMessage, reqFrom) {
+    if (reqfrom_in.isReady(clockEdge())) {
+      peek (reqfrom_in, CoherenceMessage, block_on="LineAddress") {
+        Addr LineAddress := in_msg.LineAddress;
+        TBE tbe := TBEs[LineAddress];
+        State st := getState(tbe, getEntry(LineAddress), LineAddress);
+        DPRINTF(RubySlicc, "reqfrom_in: %s %s %s (addr: %#x)\n", in_msg.Type, in_msg.Sender, st, LineAddress);
+        error("Invalid transition");
+      }
+    }
+  }
+  
+  in_port(mandatory_in, RubyRequest, mandatoryQueue) {
+    if (mandatory_in.isReady(clockEdge())) {
+      peek(mandatory_in, RubyRequest, block_on="LineAddress") {
+        Addr LineAddress := in_msg.LineAddress;
+        Entry entry := getEntry(LineAddress);
+        DPRINTF(RubySlicc, "mandatory_in: %s %s (addr: %#x)\n", in_msg.Type, getState(TBEs[LineAddress], entry, LineAddress), LineAddress);
+        if (is_invalid(entry) &&
+            cache.cacheAvail(LineAddress) == false ) {
+          Addr victim := cache.cacheProbe(in_msg.LineAddress);
+          DPRINTF(RubySlicc, "Evicting %#x (%s) for %#x\n", victim, getState(TBEs[victim], getEntry(victim), victim), LineAddress);
+          Addr LineAddress := victim;
+          TBE tbe := TBEs[LineAddress];
+          Entry entry := getEntry(LineAddress);
+          State st := getState(tbe, entry, LineAddress);
+          if (st == State:I) {
+            if (is_invalid(tbe)) {
+              if (TBEs.areNSlotsAvailable(1, clockEdge())) {
+                trigger(Event:allocTBE, LineAddress, getEntry(LineAddress), tbe);
+              } else {
+                DPRINTF(RubySlicc, "recycling %s on mandatory_in (addr: %#x)\n", st, LineAddress);
+                mandatory_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+                trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+              }
+            }
+            setState(tbe, getEntry(LineAddress), LineAddress, State:I_release);
+            // If necessary, forward the eviction to the CPU so that it can squash speculation
+            if (send_evictions) {
+              sequencer.evictionCallback(LineAddress);
+            }
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          } else if (st == State:VC) {
+            setState(tbe, getEntry(LineAddress), LineAddress, State:I);
+            trigger(Event:deallocmandatory_in, LineAddress, getEntry(LineAddress), tbe);
+            // If necessary, forward the eviction to the CPU so that it can squash speculation
+            if (send_evictions) {
+              sequencer.evictionCallback(LineAddress);
+            }
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          } else if (st == State:VD) {
+            if (is_invalid(tbe)) {
+              if (TBEs.areNSlotsAvailable(1, clockEdge())) {
+                trigger(Event:allocTBE, LineAddress, getEntry(LineAddress), tbe);
+              } else {
+                DPRINTF(RubySlicc, "recycling %s on mandatory_in (addr: %#x)\n", st, LineAddress);
+                mandatory_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+                trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+              }
+            }
+            setState(tbe, getEntry(LineAddress), LineAddress, State:VD_release);
+            // If necessary, forward the eviction to the CPU so that it can squash speculation
+            if (send_evictions) {
+              sequencer.evictionCallback(LineAddress);
+            }
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          } else {
+            DPRINTF(RubySlicc, "recycling %s on mandatory_in (addr: %#x)\n", st, LineAddress);
+            mandatory_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+            trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+          }
+        } else {
+          TBE tbe := TBEs[LineAddress];
+          Entry entry := getEntry(LineAddress);
+          State st := getState(tbe, entry, LineAddress);
+          if (in_msg.Type == RubyRequestType:LD ||
+              in_msg.Type == RubyRequestType:IFETCH) {
+            if (st == State:I) {
+              trigger(Event:allocI_load, LineAddress, getEntry(LineAddress), tbe);
+              
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else if (st == State:VC) {
+              
+              trigger(Event:VCloadVCEvent, LineAddress, getEntry(LineAddress), tbe);
+              
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else if (st == State:VD) {
+              
+              trigger(Event:VDloadVDEvent, LineAddress, getEntry(LineAddress), tbe);
+              
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else {
+              DPRINTF(RubySlicc, "recycling %s on mandatory_in (addr: %#x)\n", st, LineAddress);
+              mandatory_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            }
+          } else if (in_msg.Type == RubyRequestType:ST) {
+            if (st == State:I) {
+              trigger(Event:allocI_store, LineAddress, getEntry(LineAddress), tbe);
+              
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else if (st == State:VC) {
+              
+              trigger(Event:VCstoreVDEvent, LineAddress, getEntry(LineAddress), tbe);
+              
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else if (st == State:VD) {
+              
+              trigger(Event:VDstoreVDEvent, LineAddress, getEntry(LineAddress), tbe);
+              
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else {
+              DPRINTF(RubySlicc, "recycling %s on mandatory_in (addr: %#x)\n", st, LineAddress);
+              mandatory_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            }
+          } else {
+            error("Unexpected message type from processor");
+          }
+        }
+      }
+    }
+  }
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheActions
+  action(allocEntry, "a", desc="Allocate an entry") {
+     assert(is_invalid(cache_entry));
+     assert(cache.cacheAvail(address));
+     set_cache_entry(cache.allocate(address, new Entry));
+  }
+  action(deallocEntry, "d", desc="Deallocate an entry") {
+      assert(is_valid(cache_entry));
+      cache.deallocate(address);
+      unset_cache_entry();
+  }
+  action(a_allocTBE, "aTBE", desc="Allocate TBE entry.") {
+    TBEs.allocate(address);
+    set_tbe(TBEs[address]);
+  }
+  action(a_deallocTBE, "dTBE", desc="Deallocate TBE entry.") {
+    if (is_valid(tbe)) {
+      TBEs.deallocate(address);
+      unset_tbe();
+    }
+  }
+  action(local_loadHit, "lLh", desc="Callback local load hit.") {
+    // Signal to gem5 that this load/read access was a hit locally
+    assert(is_valid(cache_entry));
+    cache.setMRU(cache_entry);
+    sequencer.readCallback(address, cache_entry.cl, false);
+  }
+  
+  action(local_storeHit, "lSh", desc="Callback local store hit.") {
+    // Signal to gem5 that this store access was a hit locally
+    assert(is_valid(cache_entry));
+    cache.setMRU(cache_entry);
+    sequencer.writeCallback(address, cache_entry.cl, false);
+  }
+  
+  action(remote_loadHit, "rLh", desc="Callback remote load hit.") {
+    // Signal to gem5 that this load/read access was a hit remotely
+    // (i.e. was satisfied through the coherence interface)
+    assert(is_valid(cache_entry));
+    cache.setMRU(cache_entry);
+    sequencer.readCallback(address, cache_entry.cl, true);
+  }
+  
+  action(remote_storeHit, "rSh", desc="Callback remote store hit.") {
+    // Signal to gem5 that this load/read access was a hit remotely
+    // (i.e. was satisfied through the coherence interface)
+    assert(is_valid(cache_entry));
+    cache.setMRU(cache_entry);
+    sequencer.writeCallback(address, cache_entry.cl, true);
+  }
+  
+  action(popmandatory_in, "pmandatory_in0", desc="Pop the mandatory_in queue.") {
+      // Sometimes we need to be able to pop a queue/in_port from within a transition
+      // rather than from within the in_port itself. Thus, we need an action for this,
+      // since transitions cannot execute non-action functions.
+      mandatory_in.dequeue(clockEdge());
+  }
+  
+  action(recyclemandatory_in, "rmandatory_in0", desc="Recycle the mandatory_in port") {
+    DPRINTF(RubySlicc, "Stalling mandatory_in (addr: %#x)\n", address);
+    mandatory_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+    //stall_and_wait(mandatory_in, address);
+  }
+  
+  action(popfwdfrom_in, "pfwdfrom_in0", desc="Pop the fwdfrom_in queue.") {
+      // Sometimes we need to be able to pop a queue/in_port from within a transition
+      // rather than from within the in_port itself. Thus, we need an action for this,
+      // since transitions cannot execute non-action functions.
+      fwdfrom_in.dequeue(clockEdge());
+  }
+  
+  action(recyclefwdfrom_in, "rfwdfrom_in0", desc="Recycle the fwdfrom_in port") {
+    DPRINTF(RubySlicc, "Stalling fwdfrom_in (addr: %#x)\n", address);
+    fwdfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+    //stall_and_wait(fwdfrom_in, address);
+  }
+  
+  action(popreqfrom_in, "preqfrom_in0", desc="Pop the reqfrom_in queue.") {
+      // Sometimes we need to be able to pop a queue/in_port from within a transition
+      // rather than from within the in_port itself. Thus, we need an action for this,
+      // since transitions cannot execute non-action functions.
+      reqfrom_in.dequeue(clockEdge());
+  }
+  
+  action(recyclereqfrom_in, "rreqfrom_in0", desc="Recycle the reqfrom_in port") {
+    DPRINTF(RubySlicc, "Stalling reqfrom_in (addr: %#x)\n", address);
+    reqfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+    //stall_and_wait(reqfrom_in, address);
+  }
+  
+  action(poprespfrom_in, "prespfrom_in0", desc="Pop the respfrom_in queue.") {
+      // Sometimes we need to be able to pop a queue/in_port from within a transition
+      // rather than from within the in_port itself. Thus, we need an action for this,
+      // since transitions cannot execute non-action functions.
+      respfrom_in.dequeue(clockEdge());
+  }
+  
+  action(recyclerespfrom_in, "rrespfrom_in0", desc="Recycle the respfrom_in port") {
+    DPRINTF(RubySlicc, "Stalling respfrom_in (addr: %#x)\n", address);
+    respfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+    //stall_and_wait(respfrom_in, address);
+  }
+  
+  action(actionI_I_acquire, "II0", desc="TODO") {
+    peek(mandatory_in, RubyRequest) {
+      Addr LineAddress := in_msg.LineAddress;
+      enqueue(reqto_out, CoherenceMessage, responseLatency) {
+        out_msg.LineAddress := LineAddress;
+        out_msg.MessageSize := MessageSizeType:Control;
+        out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+        out_msg.Type := CoherenceMessageType:GetVL1C1;
+        out_msg.Sender := machineID;
+      }
+    }
+  }
+  
+  action(actionI_I_load, "II1", desc="TODO") {
+    peek(mandatory_in, RubyRequest) {
+      Addr LineAddress := in_msg.LineAddress;
+      enqueue(reqto_out, CoherenceMessage, responseLatency) {
+        out_msg.LineAddress := LineAddress;
+        out_msg.MessageSize := MessageSizeType:Control;
+        out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+        out_msg.Type := CoherenceMessageType:GetVL1C1;
+        out_msg.Sender := machineID;
+      }
+    }
+  }
+  
+  action(actionI_I_store, "II2", desc="TODO") {
+    peek(mandatory_in, RubyRequest) {
+      Addr LineAddress := in_msg.LineAddress;
+      enqueue(reqto_out, CoherenceMessage, responseLatency) {
+        out_msg.LineAddress := LineAddress;
+        out_msg.MessageSize := MessageSizeType:Control;
+        out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+        out_msg.Type := CoherenceMessageType:GetVL1C1;
+        out_msg.Sender := machineID;
+      }
+    }
+  }
+  
+  action(empty, "e", desc="Empty action") {
+      // empty action; useful as SLICC requires valid transitions
+      // to be non-empty, but the actions being invoked can still be empty
+      // e.g. to simulate a z-stall
+  }
+  
+  //Backend.SLICC.ModularSLICC.cache.GenCacheTransitions
+  transition({I}, deallocfwdfrom_in) {
+      deallocEntry;
+      a_deallocTBE;
+      popfwdfrom_in;
+  }
+  
+  transition({I}, deallocreqfrom_in) {
+      deallocEntry;
+      a_deallocTBE;
+      popreqfrom_in;
+  }
+  
+  transition({I}, deallocrespfrom_in) {
+      deallocEntry;
+      a_deallocTBE;
+      poprespfrom_in;
+  }
+  
+  transition(I, allocI_acquire, I_acquire) {
+    allocEntry;
+    a_allocTBE;
+    actionI_I_acquire;
+    popmandatory_in;
+  }
+  
+  transition(I, allocI_load, I_load) {
+    allocEntry;
+    a_allocTBE;
+    actionI_I_load;
+    popmandatory_in;
+  }
+  
+  transition(I, allocI_store, I_store) {
+    allocEntry;
+    a_allocTBE;
+    actionI_I_store;
+    popmandatory_in;
+  }
+  
+  transition(VC, VCloadVCEvent, VC) {
+    local_loadHit;
+    popmandatory_in;
+  }
+  
+  transition(VD, VDloadVDEvent, VD) {
+    local_loadHit;
+    popmandatory_in;
+  }
+  
+  transition(VC, VCstoreVDEvent, VD) {
+    local_storeHit;
+    popmandatory_in;
+  }
+  
+  transition(VD, VDstoreVDEvent, VD) {
+    local_storeHit;
+    popmandatory_in;
+  }
+  
+  transition(VC, externalloadVCfwdfrom_in) {
+    remote_loadHit;
+    a_deallocTBE;
+    popfwdfrom_in;
+  }
+  
+  transition(VD, externalloadVDfwdfrom_in) {
+    remote_loadHit;
+    a_deallocTBE;
+    popfwdfrom_in;
+  }
+  
+  transition(VD, externalstoreVDfwdfrom_in) {
+    remote_storeHit;
+    a_deallocTBE;
+    popfwdfrom_in;
+  }
+  
+  transition(VC, externalloadVCreqfrom_in) {
+    remote_loadHit;
+    a_deallocTBE;
+    popreqfrom_in;
+  }
+  
+  transition(VD, externalloadVDreqfrom_in) {
+    remote_loadHit;
+    a_deallocTBE;
+    popreqfrom_in;
+  }
+  
+  transition(VD, externalstoreVDreqfrom_in) {
+    remote_storeHit;
+    a_deallocTBE;
+    popreqfrom_in;
+  }
+  
+  transition(VC, externalloadVCrespfrom_in) {
+    remote_loadHit;
+    a_deallocTBE;
+    poprespfrom_in;
+  }
+  
+  transition(VD, externalloadVDrespfrom_in) {
+    remote_loadHit;
+    a_deallocTBE;
+    poprespfrom_in;
+  }
+  
+  transition(VD, externalstoreVDrespfrom_in) {
+    remote_storeHit;
+    a_deallocTBE;
+    poprespfrom_in;
+  }
+  
+  transition({I, I_acquire, I_acquire_GetV_Ack, I_load, I_release, I_release_rel_event, I_release_rel_event_GetR_Ack, I_store, VC, VC_acquire, VC_acquire_GetV_Ack, VC_release, VC_release_rel_event, VD, VD_acquire, VD_acquire_GetV_Ack, VD_evict, VD_rel_event, VD_release, VD_release_rel_event}, Stallmandatory_in) {
+      recyclemandatory_in;
+  }
+  
+  transition({I, I_acquire, I_acquire_GetV_Ack, I_load, I_release, I_release_rel_event, I_release_rel_event_GetR_Ack, I_store, VC, VC_acquire, VC_acquire_GetV_Ack, VC_release, VC_release_rel_event, VD, VD_acquire, VD_acquire_GetV_Ack, VD_evict, VD_rel_event, VD_release, VD_release_rel_event}, Stallfwdfrom_in) {
+      recyclefwdfrom_in;
+  }
+  
+  transition({I, I_acquire, I_acquire_GetV_Ack, I_load, I_release, I_release_rel_event, I_release_rel_event_GetR_Ack, I_store, VC, VC_acquire, VC_acquire_GetV_Ack, VC_release, VC_release_rel_event, VD, VD_acquire, VD_acquire_GetV_Ack, VD_evict, VD_rel_event, VD_release, VD_release_rel_event}, Stallreqfrom_in) {
+      recyclereqfrom_in;
+  }
+  
+  transition({I, I_acquire, I_acquire_GetV_Ack, I_load, I_release, I_release_rel_event, I_release_rel_event_GetR_Ack, I_store, VC, VC_acquire, VC_acquire_GetV_Ack, VC_release, VC_release_rel_event, VD, VD_acquire, VD_acquire_GetV_Ack, VD_evict, VD_rel_event, VD_release, VD_release_rel_event}, Stallrespfrom_in) {
+      recyclerespfrom_in;
+  }
+  
+  transition({I, I_acquire, I_acquire_GetV_Ack, I_load, I_release, I_release_rel_event, I_release_rel_event_GetR_Ack, I_store, VC, VC_acquire, VC_acquire_GetV_Ack, VC_release, VC_release_rel_event, VD, VD_acquire, VD_acquire_GetV_Ack, VD_evict, VD_rel_event, VD_release, VD_release_rel_event}, allocTBE) {
+    a_allocTBE;
+  }
+  
+  transition({I, I_acquire, I_acquire_GetV_Ack, I_load, I_release, I_release_rel_event, I_release_rel_event_GetR_Ack, I_store, VC, VC_acquire, VC_acquire_GetV_Ack, VC_release, VC_release_rel_event, VD, VD_acquire, VD_acquire_GetV_Ack, VD_evict, VD_rel_event, VD_release, VD_release_rel_event}, deallocTBE) {
+    a_deallocTBE;
+  }
+  
+  transition({I, I_acquire, I_acquire_GetV_Ack, I_load, I_release, I_release_rel_event, I_release_rel_event_GetR_Ack, I_store, VC, VC_acquire, VC_acquire_GetV_Ack, VC_release, VC_release_rel_event, VD, VD_acquire, VD_acquire_GetV_Ack, VD_evict, VD_rel_event, VD_release, VD_release_rel_event}, Progress) {
+      empty;
+  }
+}
+// EOF<cache>

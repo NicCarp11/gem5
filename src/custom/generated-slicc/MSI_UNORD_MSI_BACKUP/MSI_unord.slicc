@@ -3,5 +3,5 @@ protocol "MSI_unord";
 include "RubySlicc_interfaces.slicc";
 include "MSI_unord_MSI_unord_msg.sm";
 include "MSI_unord_MSI_unord_dir.sm";
-include "MSI_unord_MSI_unord_proxy.sm";
+include "MSI_unord_MSI_unord_proxy-tbe.sm";
 include "MSI_unord_MSI_unord_cache1.sm";

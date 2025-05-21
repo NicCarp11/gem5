@@ -1,10 +1,39 @@
 config PROTOCOL
     default "GENERATED" if RUBY_PROTOCOL_GENERATED
     default "MOESI_CMP_directory_edit" if RUBY_PROTOCOL_MOESI_CMP_DIRECTORY_EDIT
+    default "MESI_two_generated" if RUBY_MESI_two_generated
+    default "MSI_unord" if RUBY_MSI_unord
+    default "MESI_unord" if RUBY_MESI_unord
+    default "MESI_unord_CXL" if RUBY_MESI_unord_CXL
+    default "MSI_unord_CXL" if RUBY_MSI_unord_CXL
+    default "MOESI_unord_CXL" if RUBY_MOESI_unord_CXL
+    default "MESI_CXL_MSI" if RUBY_MESI_CXL_MSI
+    default "nicolo-MSI_unord" if RUBY_MSI_unord_NIC
+    default "nicolo-MESI_unord" if RUBY_MESI_unord_NIC
+
+
 
 cont_choice "Ruby protocol"
     config RUBY_PROTOCOL_GENERATED
         bool "GENERATED"
     config RUBY_PROTOCOL_MOESI_CMP_DIRECTORY_EDIT
         bool "MOESI CMP directory edit"
+    config RUBY_MESI_two_generated
+        bool "MESI_two_generated"
+    config RUBY_MSI_unord
+        bool "MSI_unord"
+    config RUBY_MESI_unord
+        bool "MESI_unord"
+    config RUBY_MESI_unord_CXL
+        bool "MESI_unord_CXL"
+    config RUBY_MSI_unord_CXL
+        bool "MSI_unord_CXL"
+    config RUBY_MOESI_unord_CXL
+        bool "MOESI_unord_CXL"
+    config RUBY_MESI_CXL_MSI
+        bool "MESI_CXL_MSI"
+    config RUBY_MESI_unord_NIC
+        bool "nicolo-MESI_unord"
+    config RUBY_MSI_unord_NIC
+        bool "nicolo-MSI_unord"
 endchoice

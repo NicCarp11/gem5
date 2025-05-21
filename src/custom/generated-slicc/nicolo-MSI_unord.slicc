@@ -1,0 +1,9 @@
+protocol "nicolo-MSI_unord";
+
+include "RubySlicc_interfaces.slicc";
+include "nicolo-MSI_unord_MSI_unord_msg.sm";
+include "nicolo-MSI_unord_MSI_unord_dir.sm";
+include "nicolo-MSI_unord_MSI_unord_proxy1.sm";
+include "nicolo-MSI_unord_MSI_unord_proxy2.sm";
+include "nicolo-MSI_unord_MSI_unord_cache.sm";
+

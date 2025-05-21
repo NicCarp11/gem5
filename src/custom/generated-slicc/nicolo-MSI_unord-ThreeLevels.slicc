@@ -1,0 +1,8 @@
+protocol "nicolo-MSI_unord-ThreeLevels";
+
+include "RubySlicc_interfaces.slicc";
+include "MSI_unord_MSI_unord_msg.sm";
+include "MSI_unord_MSI_unord_dir.sm";
+include "MSI_unord_MSI_unord_proxy2.sm";
+include "MSI_unord_MSI_unord_proxy3.sm";
+include "MSI_unord_MSI_unord_cache.sm";
