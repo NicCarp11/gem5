@@ -8,6 +8,8 @@ config PROTOCOL
     default "MSI_unord_CXL" if RUBY_MSI_unord_CXL
     default "MOESI_unord_CXL" if RUBY_MOESI_unord_CXL
     default "MESI_CXL_MSI" if RUBY_MESI_CXL_MSI
+    default "MESI_CXL_MOESI" if RUBY_MESI_CXL_MOESI
+    default "MESI_CXL_MESIF" if RUBY_MESI_CXL_MESIF
     default "nicolo-MSI_unord" if RUBY_MSI_unord_NIC
     default "nicolo-MESI_unord" if RUBY_MESI_unord_NIC
 
@@ -32,6 +34,10 @@ cont_choice "Ruby protocol"
         bool "MOESI_unord_CXL"
     config RUBY_MESI_CXL_MSI
         bool "MESI_CXL_MSI"
+    config RUBY_MESI_CXL_MOESI
+        bool "MESI_CXL_MOESI"
+    config RUBY_MESI_CXL_MESIF
+        bool "MESI_CXL_MESIF"
     config RUBY_MESI_unord_NIC
         bool "nicolo-MESI_unord"
     config RUBY_MSI_unord_NIC

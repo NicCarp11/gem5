@@ -59,8 +59,32 @@ class ArmO3Checker(BaseO3Checker, ArmCPU):
     mmu = ArmMMU()
 
 
+class ArmO3CPU_TSO_En(BaseO3CPU, ArmCPU):
+    mmu = ArmMMU()
+    needsTSO = True
+
+    # For x86, each CC reg is used to hold only a subset of the
+    # flags, so we need 4-5 times the number of CC regs as
+    # physical integer regs to be sure we don't run out.  In
+    # typical real machines, CC regs are not explicitly renamed
+    # (it's a side effect of int reg renaming), so they should
+    # never be the bottleneck here.
+    numPhysCCRegs = Self.numPhysIntRegs * 5
+
+    def addCheckerCpu(self):
+        self.checker = ArmO3Checker(
+            workload=self.workload,
+            exitOnError=False,
+            updateOnError=True,
+            warnOnlyOnLoadError=True,
+        )
+        self.checker.mmu.itb.size = self.mmu.itb.size
+        self.checker.mmu.dtb.size = self.mmu.dtb.size
+        self.checker.cpu_id = self.cpu_id
+
 class ArmO3CPU(BaseO3CPU, ArmCPU):
     mmu = ArmMMU()
+    needsTSO = False
 
     # For x86, each CC reg is used to hold only a subset of the
     # flags, so we need 4-5 times the number of CC regs as

@@ -26,7 +26,7 @@ machine(MachineType:L1Cache, "Cache controller")
     E, AccessPermission:Read_Write, desc="... TODO ...";
     E_evict, AccessPermission:Read_Only, desc="... TODO ...";
     I, AccessPermission:Invalid, desc="... TODO ...";
-    I_evict, AccessPermission:Busy, desc="... TODO ...";
+    I_evict, AccessPermission:Invalid, desc="... TODO ...";
     I_load, AccessPermission:Invalid, desc="... TODO ...";
     I_store, AccessPermission:Invalid, desc="... TODO ...";
     I_store_GetM_Ack_AD, AccessPermission:Read_Only, desc="... TODO ...";

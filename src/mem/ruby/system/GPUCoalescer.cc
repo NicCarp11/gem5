@@ -241,35 +241,35 @@ GPUCoalescer::GPUCoalescer(const Params &p)
     // These statistical variables are not for display.
     // The profiler will collate these across different
     // coalescers and display those collated statistics.
-    m_outstandReqHist.init(10);
-    m_latencyHist.init(10);
-    m_missLatencyHist.init(10);
+    m_outstandReqHist.init(160);
+    m_latencyHist.init(160);
+    m_missLatencyHist.init(160);
 
     for (int i = 0; i < RubyRequestType_NUM; i++) {
         m_typeLatencyHist.push_back(new statistics::Histogram());
-        m_typeLatencyHist[i]->init(10);
+        m_typeLatencyHist[i]->init(160);
 
         m_missTypeLatencyHist.push_back(new statistics::Histogram());
-        m_missTypeLatencyHist[i]->init(10);
+        m_missTypeLatencyHist[i]->init(160);
     }
 
     for (int i = 0; i < MachineType_NUM; i++) {
         m_missMachLatencyHist.push_back(new statistics::Histogram());
-        m_missMachLatencyHist[i]->init(10);
+        m_missMachLatencyHist[i]->init(160);
 
         m_IssueToInitialDelayHist.push_back(new statistics::Histogram());
-        m_IssueToInitialDelayHist[i]->init(10);
+        m_IssueToInitialDelayHist[i]->init(160);
 
         m_InitialToForwardDelayHist.push_back(new statistics::Histogram());
-        m_InitialToForwardDelayHist[i]->init(10);
+        m_InitialToForwardDelayHist[i]->init(160);
 
         m_ForwardToFirstResponseDelayHist.push_back(
             new statistics::Histogram());
-        m_ForwardToFirstResponseDelayHist[i]->init(10);
+        m_ForwardToFirstResponseDelayHist[i]->init(160);
 
         m_FirstResponseToCompletionDelayHist.push_back(
             new statistics::Histogram());
-        m_FirstResponseToCompletionDelayHist[i]->init(10);
+        m_FirstResponseToCompletionDelayHist[i]->init(160);
     }
 
     for (int i = 0; i < RubyRequestType_NUM; i++) {
@@ -279,7 +279,7 @@ GPUCoalescer::GPUCoalescer(const Params &p)
         for (int j = 0; j < MachineType_NUM; j++) {
             m_missTypeMachLatencyHist[i].push_back(
                 new statistics::Histogram());
-            m_missTypeMachLatencyHist[i][j]->init(10);
+            m_missTypeMachLatencyHist[i][j]->init(160);
         }
     }
 

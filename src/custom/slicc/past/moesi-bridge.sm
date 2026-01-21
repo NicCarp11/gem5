@@ -1,0 +1,539 @@
+machine(MachineType:Bridge, "MEOSI bridge")
+  :
+    MessageBuffer * l2_requestToBridge, network="From", virtual_network="1", vnet_type="request";
+    MessageBuffer * l2_responseToBridge, network="From", virtual_network="2", vnet_type="response";
+
+    MessageBuffer * l2_forwardFromBridge, network="To", virtual_network="1", vnet_type="forward";
+    MessageBuffer * l2_responseFromBridge, network="To", virtual_network="2", vnet_type="response";
+
+    MessageBuffer * dir_requestToBridge, network="From", virtual_network="5", vnet_type="request";
+    MessageBuffer * dir_responseToBridge, network="From", virtual_network="6", vnet_type="response";
+
+    MessageBuffer * dir_forwardFromBridge, network="To", virtual_network="5", vnet_type="forward";
+    MessageBuffer * dir_responseFromBridge, network="To", virtual_network="6", vnet_type="response";
+
+{
+    
+  state_declaration(State, desc="Bridge states", default="Bridge_State_I") {
+      I,  AccessPermission:Invalid,   desc="Not present/Invalid";
+      W,  AccessPermission:Invalid,   desc="Waiting for response";
+  }
+
+  enumeration(Event, desc="Bridge events") {
+    GetS, desc="Forwarding a GETS";
+    GetX, desc="Forwarding a GETX";
+    PutX, desc="Forwarding a PUTX";
+    PutO, desc="Forwarding a PUTO";
+    PutOSharers, desc="Forwarding a PUTO_SHARERS";
+    DirtyWriteback, desc="Forwarding a WRITEBACK_DIRTY_DATA";
+    CleanWriteback, desc="Forwarding a WRITEBACK_CLEAN_DATA";
+
+    FwdGetS, desc="Forwarding a FWDGETS";
+    FwdGetX, desc="Forwarding a FWDGETX";
+    FwdInv, desc="Forwarding a FWDGETX";
+    OwnGetX, desc="Forwarding a OWNGETX";
+
+    Unblock, desc="Forwaring UNBLOCK";
+    UnblockExclusive, desc="Forwaring UNBLOCK_EXCLUSIVE";
+
+    WriteBackAck, desc="Forwaring WB_ACK";
+    WriteBackNack, desc="Forwaring WB_NACK";
+    Data, desc="Forwaring DATA";
+    DataExclusive, desc="Forwaring DATA_EXCLUSIVE";
+
+    FwdData, desc="Forwaring DATA";
+    FwdDataExclusive, desc="Forwaring DATA_EXCLUSIVE";
+    FwdAck, desc="Forwaring DATA_EXCLUSIVE";
+
+    Ack, desc="Forwarding ACK";
+  }
+
+  structure(Entry, desc="...", interface='AbstractCacheEntry', main="false") {
+    State DirectoryState,          desc="Directory state";
+  }
+
+  structure(DirEntry, desc="...", interface="AbstractCacheEntry", main="false") {
+    MachineID Owner,   desc="ID of the L1 cache to forward the block to once we get a response";
+  }
+
+  structure(TBE, desc="...") {
+    Addr PhysicalAddress,   desc="Physical address for this entry";
+  
+    NetDest DataWaiters, desc="Waiters for data";
+    MoesiCoherenceRequestType WaitedType, desc="The waited data type";
+    
+  }
+
+  structure(TBETable, external = "yes") {
+    TBE lookup(Addr);
+    void allocate(Addr);
+    void deallocate(Addr);
+    bool isPresent(Addr);
+  }
+
+  structure(PerfectCacheMemory, external = "yes") {
+    void allocate(Addr);
+    void deallocate(Addr);
+    DirEntry lookup(Addr);
+    bool isTagPresent(Addr);
+  }
+
+  TBETable TBEs, template="<Bridge_TBE>", constructor="m_number_of_TBEs";
+  PerfectCacheMemory localDirectory, template="<Bridge_DirEntry>";
+
+  State getState(TBE tbe, Addr addr) {
+    if (localDirectory.isTagPresent(addr)) {
+      return State:W;
+    }else {
+      return State:I;
+    }
+  }
+
+  void setState(TBE tbe, Addr addr, State state) {
+    //if (directory.isPresent(addr)) {
+    //  Entry dir_entry := static_cast(Entry, "pointer", directory[addr]);
+    //  if (is_valid(dir_entry)) {
+    //    assert(state != State:I);
+    //    dir_entry.DirectoryState := state;
+    //  } else {
+    //    assert(state == State:I);
+    //  }
+    //}
+    if(localDirectory.isTagPresent(addr)) {
+      assert(state == State:W);
+    } else {
+      assert(state == State:I);
+    }
+  }
+
+  AccessPermission getAccessPermission(Addr addr) {
+    //if (directory.isPresent(addr)) {
+    //  Entry dir_entry := static_cast(Entry, "pointer", directory[addr]);
+    //  if (is_valid(dir_entry)) {
+    //    DPRINTF(RubySlicc, "%s,%s\n", dir_entry.DirectoryState, Directory_State_to_permission(dir_entry.DirectoryState));
+    //    return Directory_State_to_permission(dir_entry.DirectoryState);
+    //  } else {
+    //    DPRINTF(RubySlicc, "%s,%s\n", State:I, Directory_State_to_permission(State:I));
+    //    return Directory_State_to_permission(State:I);
+    //  }
+    //}
+    //DPRINTF(RubySlicc, "AccessPermission_NotPresent\n");
+    return AccessPermission:NotPresent;
+  }
+
+  void setAccessPermission(Addr addr, State state) {
+    //if (directory.isPresent(addr)) {
+    //  Entry dir_entry := static_cast(Entry, "pointer", directory[addr]);
+    //  if (is_valid(dir_entry)) {
+    //    dir_entry.changePermission(Directory_State_to_permission(state));
+    //  } else {
+    //    assert(state == State:I);
+    //  }
+    //}
+  }
+
+  void functionalRead(Addr addr, Packet *pkt) {
+    //TBE tbe := TBEs[addr];
+    //if (is_valid(tbe) && tbe.WaitingWBAck) {
+    //  testAndRead(addr, tbe.DataBlk, pkt);
+    //} else {
+    //  functionalMemoryRead(pkt);
+    //}
+  }
+
+  int functionalWrite(Addr addr, Packet *pkt) {
+    int num_functional_writes := 0;
+    //TBE tbe := TBEs[addr];
+    //if (is_valid(tbe)) {
+    //  num_functional_writes := num_functional_writes +
+    //    testAndWrite(addr, tbe.DataBlk, pkt);
+    //}
+    //num_functional_writes := num_functional_writes + functionalMemoryWrite(pkt);
+    return num_functional_writes;
+  }
+
+  DirEntry getDirEntry(Addr address), return_by_pointer="yes" {
+    return localDirectory.lookup(address);
+  }
+
+  CxlCoherenceRequestType req_moesi2cxl(MoesiCoherenceRequestType value) {
+    if(value == MoesiCoherenceRequestType:GETX) { return CxlCoherenceRequestType:GETX; }
+    if(value == MoesiCoherenceRequestType:GETS) { return CxlCoherenceRequestType:GETS; }
+    if(value == MoesiCoherenceRequestType:PUTX) { return CxlCoherenceRequestType:PUTX; }
+    if(value == MoesiCoherenceRequestType:PUTO) { return CxlCoherenceRequestType:PUTO; }
+    if(value == MoesiCoherenceRequestType:PUTO_SHARERS) { return CxlCoherenceRequestType:PUTO_SHARERS; }
+    if(value == MoesiCoherenceRequestType:PUTS) { return CxlCoherenceRequestType:PUTS; }
+    if(value == MoesiCoherenceRequestType:INV) { return CxlCoherenceRequestType:INV; }
+    if(value == MoesiCoherenceRequestType:WRITEBACK_CLEAN_DATA) { return CxlCoherenceRequestType:WRITEBACK_CLEAN_DATA; }
+    if(value == MoesiCoherenceRequestType:WRITEBACK_CLEAN_ACK) { return CxlCoherenceRequestType:WRITEBACK_CLEAN_ACK; }
+    if(value == MoesiCoherenceRequestType:WRITEBACK_DIRTY_DATA) { return CxlCoherenceRequestType:WRITEBACK_DIRTY_DATA; }
+    error("Invalid value");
+  }
+
+  MoesiCoherenceRequestType req_cxl2moesi(CxlCoherenceRequestType value) {
+    if(value == CxlCoherenceRequestType:GETX) { return MoesiCoherenceRequestType:GETX; }
+    if(value == CxlCoherenceRequestType:GETS) { return MoesiCoherenceRequestType:GETS; }
+    if(value == CxlCoherenceRequestType:PUTX) { return MoesiCoherenceRequestType:PUTX; }
+    if(value == CxlCoherenceRequestType:PUTO) { return MoesiCoherenceRequestType:PUTO; }
+    if(value == CxlCoherenceRequestType:PUTO_SHARERS) { return MoesiCoherenceRequestType:PUTO_SHARERS; }
+    if(value == CxlCoherenceRequestType:PUTS) { return MoesiCoherenceRequestType:PUTS; }
+    if(value == CxlCoherenceRequestType:INV) { return MoesiCoherenceRequestType:INV; }
+    if(value == CxlCoherenceRequestType:WRITEBACK_CLEAN_DATA) { return MoesiCoherenceRequestType:WRITEBACK_CLEAN_DATA; }
+    if(value == CxlCoherenceRequestType:WRITEBACK_CLEAN_ACK) { return MoesiCoherenceRequestType:WRITEBACK_CLEAN_ACK; }
+    if(value == CxlCoherenceRequestType:WRITEBACK_DIRTY_DATA) { return MoesiCoherenceRequestType:WRITEBACK_DIRTY_DATA; }
+    error("Invalid value");
+  }
+
+  CxlCoherenceResponseType resp_moesi2cxl(MoesiCoherenceResponseType value) {
+    if(value == MoesiCoherenceResponseType:ACK) { return CxlCoherenceResponseType:ACK; }
+    if(value == MoesiCoherenceResponseType:DATA) { return CxlCoherenceResponseType:DATA; }
+    if(value == MoesiCoherenceResponseType:DATA_EXCLUSIVE) { return CxlCoherenceResponseType:DATA_EXCLUSIVE; }
+    if(value == MoesiCoherenceResponseType:UNBLOCK) { return CxlCoherenceResponseType:UNBLOCK; }
+    if(value == MoesiCoherenceResponseType:UNBLOCK_EXCLUSIVE) { return CxlCoherenceResponseType:UNBLOCK_EXCLUSIVE; }
+    if(value == MoesiCoherenceResponseType:WB_ACK) { return CxlCoherenceResponseType:WB_ACK; }
+    if(value == MoesiCoherenceResponseType:WB_ACK_DATA) { return CxlCoherenceResponseType:WB_ACK_DATA; }
+    if(value == MoesiCoherenceResponseType:WB_NACK) { return CxlCoherenceResponseType:WB_NACK; }
+    error("Invalid value");
+  }
+
+  MoesiCoherenceResponseType resp_cxl2moesi(CxlCoherenceResponseType value) {
+    if(value == CxlCoherenceResponseType:ACK) { return MoesiCoherenceResponseType:ACK; }
+    if(value == CxlCoherenceResponseType:DATA) { return MoesiCoherenceResponseType:DATA; }
+    if(value == CxlCoherenceResponseType:DATA_EXCLUSIVE) { return MoesiCoherenceResponseType:DATA_EXCLUSIVE; }
+    if(value == CxlCoherenceResponseType:UNBLOCK) { return MoesiCoherenceResponseType:UNBLOCK; }
+    if(value == CxlCoherenceResponseType:UNBLOCK_EXCLUSIVE) { return MoesiCoherenceResponseType:UNBLOCK_EXCLUSIVE; }
+    if(value == CxlCoherenceResponseType:WB_ACK) { return MoesiCoherenceResponseType:WB_ACK; }
+    if(value == CxlCoherenceResponseType:WB_ACK_DATA) { return MoesiCoherenceResponseType:WB_ACK_DATA; }
+    if(value == CxlCoherenceResponseType:WB_NACK) { return MoesiCoherenceResponseType:WB_NACK; }
+    error("Invalid value");
+  }
+
+  Tick clockEdge();
+  void set_cache_entry(AbstractCacheEntry b);
+  void unset_cache_entry();
+  void set_tbe(TBE b);
+  void unset_tbe();
+  MachineID mapAddressToMachine(Addr addr, MachineType mtype);
+  
+  out_port(forwardNetwork_l2_out, MoesiRequestMsg, l2_forwardFromBridge);
+  out_port(responseNetwork_l2_out, MoesiResponseMsg, l2_responseFromBridge);
+
+  out_port(forwardNetwork_dir_out, CxlRequestMsg, dir_forwardFromBridge);
+  out_port(responseNetwork_dir_out, CxlResponseMsg, dir_responseFromBridge);
+
+  in_port(unblockNetwork_l2_in, MoesiResponseMsg, l2_responseToBridge, rank=2) {
+    if (unblockNetwork_l2_in.isReady(clockEdge())) {
+      peek(unblockNetwork_l2_in, MoesiResponseMsg) {
+        assert(in_msg.SenderMachine == MachineType:MoesiL2Cache);
+        if (in_msg.Type == MoesiCoherenceResponseType:UNBLOCK) {
+          trigger(Event:Unblock, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceResponseType:UNBLOCK_EXCLUSIVE) {
+          trigger(Event:UnblockExclusive, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceResponseType:DATA) {
+          trigger(Event:FwdData, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceResponseType:DATA_EXCLUSIVE) {
+          trigger(Event:FwdDataExclusive, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceResponseType:ACK) {
+          trigger(Event:FwdAck, in_msg.addr, TBEs[in_msg.addr]);
+        } else {
+          error("Invalid message");
+        }
+      }
+    }
+  }
+
+  in_port(unblockNetwork_dir_in, CxlResponseMsg, dir_responseToBridge, rank=2) {
+    if (unblockNetwork_dir_in.isReady(clockEdge())) {
+      peek(unblockNetwork_dir_in, CxlResponseMsg) {
+        assert(in_msg.SenderMachine != MachineType:MoesiL2Cache);
+        if (in_msg.Type == CxlCoherenceResponseType:DATA) {
+          trigger(Event:Data, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == CxlCoherenceResponseType:DATA_EXCLUSIVE) {
+          trigger(Event:DataExclusive, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == CxlCoherenceResponseType:WB_ACK) {
+          trigger(Event:WriteBackAck, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == CxlCoherenceResponseType:WB_NACK) {
+          trigger(Event:WriteBackNack, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == CxlCoherenceResponseType:ACK) {
+          trigger(Event:Ack, in_msg.addr, TBEs[in_msg.addr]);
+        } else {
+          error("Invalid message");
+        }
+      }
+    }
+  }
+
+  in_port(requestQueue_l2_in, MoesiRequestMsg, l2_requestToBridge, rank=1) {
+    if (requestQueue_l2_in.isReady(clockEdge())) {
+      peek(requestQueue_l2_in, MoesiRequestMsg) {
+        assert(in_msg.RequestorMachine == MachineType:MoesiL2Cache);
+        if (in_msg.Type == MoesiCoherenceRequestType:GETS) {
+          trigger(Event:GetS, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceRequestType:GETX) {
+          trigger(Event:GetX, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceRequestType:PUTX) {
+          trigger(Event:PutX, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceRequestType:PUTO) {
+          trigger(Event:PutO, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceRequestType:PUTO_SHARERS) {
+          trigger(Event:PutOSharers, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceRequestType:WRITEBACK_DIRTY_DATA) {
+          trigger(Event:DirtyWriteback, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == MoesiCoherenceRequestType:WRITEBACK_CLEAN_ACK) {
+          trigger(Event:CleanWriteback, in_msg.addr, TBEs[in_msg.addr]);
+        } else {
+          error("Invalid message");
+        }
+      }
+    }
+  }
+
+  in_port(requestQueue_dir_in, CxlRequestMsg, dir_requestToBridge, rank=1) {
+    if (requestQueue_dir_in.isReady(clockEdge())) {
+      peek(requestQueue_dir_in, CxlRequestMsg) {
+        assert(in_msg.RequestorMachine != MachineType:MoesiL2Cache);
+        if (in_msg.Type == CxlCoherenceRequestType:GETS) {
+          DPRINTF(RubyBridge, "Getting GETS for %#x\n", in_msg.addr);
+          trigger(Event:FwdGetS, in_msg.addr, TBEs[in_msg.addr]);
+        } else if (in_msg.Type == CxlCoherenceRequestType:GETX) {
+          if (in_msg.Requestor == machineID) {
+            trigger(Event:OwnGetX, in_msg.addr, TBEs[in_msg.addr]);
+          } else {
+            trigger(Event:FwdGetX, in_msg.addr, TBEs[in_msg.addr]);
+          }
+        } else if (in_msg.Type == CxlCoherenceRequestType:INV) {
+          trigger(Event:FwdInv, in_msg.addr, TBEs[in_msg.addr]);
+        } else {
+          error("Invalid message");
+        }
+      }
+    }
+  }
+
+  action(forwardTranslatedMessage, "ftm", desc="Forward translated message.") {
+    DirEntry dir_entry := getDirEntry(address);
+    peek(requestQueue_l2_in, MoesiRequestMsg) {
+      DPRINTF(RubyBridge, "%s Request from %s to Directory (Owner: %s, ReqMachine: %s, Addr: %#x)\n", 
+        in_msg.Type, in_msg.Requestor, dir_entry.Owner, in_msg.RequestorMachine, address);
+      assert(in_msg.Requestor == dir_entry.Owner);
+      enqueue(forwardNetwork_dir_out, CxlRequestMsg) {
+        out_msg.addr := in_msg.addr;
+        out_msg.Type := req_moesi2cxl(in_msg.Type);
+        out_msg.RequestorMachine := MachineType:Bridge;
+        out_msg.Requestor := machineID;
+        out_msg.Destination.add(mapAddressToMachine(in_msg.addr, MachineType:Directory));
+        out_msg.DataBlk := in_msg.DataBlk;
+        out_msg.MessageSize := in_msg.MessageSize;
+        out_msg.Acks := in_msg.Acks;
+      }
+    }
+  }
+
+  action(forwardRequestToOwner, "fro", desc="Forward translated message.") {
+    DirEntry dir_entry := getDirEntry(address);
+    peek(requestQueue_dir_in, CxlRequestMsg) {
+      DPRINTF(RubyBridge, "%s Request from %s to Owner (Owner: %s, ReqMachine: %s, Addr: %#x)\n", 
+        in_msg.Type, in_msg.Requestor, dir_entry.Owner, in_msg.RequestorMachine, address);
+      enqueue(forwardNetwork_l2_out, MoesiRequestMsg) {
+        out_msg.addr := in_msg.addr;
+        out_msg.Type := req_cxl2moesi(in_msg.Type);
+        out_msg.RequestorMachine := MachineType:Bridge;
+        out_msg.Requestor := machineID;
+        out_msg.Destination.add(dir_entry.Owner);
+        out_msg.DataBlk := in_msg.DataBlk;
+        out_msg.MessageSize := in_msg.MessageSize;
+        out_msg.Acks := in_msg.Acks;
+      }
+    }
+  }
+
+  action(sendRequestBackToOwner, "srbto", desc="Forward translated message.") {
+    DirEntry dir_entry := getDirEntry(address);
+    peek(requestQueue_dir_in, CxlRequestMsg) {
+      DPRINTF(RubyBridge, "%s Request from %s to back to Owner (Owner: %s, ReqMachine: %s, Addr: %#x)\n", 
+        in_msg.Type, in_msg.Requestor, dir_entry.Owner, in_msg.RequestorMachine, address);
+      enqueue(forwardNetwork_l2_out, MoesiRequestMsg) {
+        out_msg.addr := in_msg.addr;
+        out_msg.Type := req_cxl2moesi(in_msg.Type);
+        out_msg.RequestorMachine := MachineType:MoesiL2Cache;
+        out_msg.Requestor := dir_entry.Owner;
+        out_msg.Destination.add(dir_entry.Owner);
+        out_msg.DataBlk := in_msg.DataBlk;
+        out_msg.MessageSize := in_msg.MessageSize;
+        out_msg.Acks := in_msg.Acks;
+      }
+    }
+  }
+
+  action(forwardUnblockMessage, "fum", desc="Forward unblock message.") {
+    peek(unblockNetwork_l2_in, MoesiResponseMsg) {
+      DPRINTF(RubyBridge, "%s Response from %s to Directory (SenMachine: %s, Addr: %#x)\n", 
+        in_msg.Type, in_msg.Sender, in_msg.SenderMachine, address);
+      enqueue(responseNetwork_dir_out, CxlResponseMsg) {
+        out_msg.addr := in_msg.addr;
+        out_msg.Type := resp_moesi2cxl(in_msg.Type);
+        out_msg.Destination.add(mapAddressToMachine(in_msg.addr, MachineType:Directory));
+        out_msg.Sender := machineID;//in_msg.Sender;
+        out_msg.SenderMachine := MachineType:Bridge;
+        out_msg.MessageSize := MessageSizeType:Unblock_Control;
+      }
+    }
+  }
+
+  action(forwardResponseMessage, "frm", desc="Forward reponse message.") {
+    DirEntry dir_entry := getDirEntry(address);
+    peek(unblockNetwork_dir_in, CxlResponseMsg) {
+      DPRINTF(RubyBridge, "%s Response from %s to Owner (Owner: %s, SenMachine: %s, Addr: %#x)\n", 
+        in_msg.Type, in_msg.Sender, dir_entry.Owner, in_msg.SenderMachine, address);
+      //assert(in_msg.Sender == dir_entry.Owner);
+      enqueue(responseNetwork_l2_out, MoesiResponseMsg) {
+        out_msg.addr := in_msg.addr;
+        out_msg.Type := resp_cxl2moesi(in_msg.Type);
+        out_msg.Destination.add(dir_entry.Owner);
+        out_msg.Sender := in_msg.Sender;
+        out_msg.SenderMachine := in_msg.SenderMachine;
+        out_msg.MessageSize := in_msg.MessageSize;
+        out_msg.DataBlk := in_msg.DataBlk;
+        out_msg.Dirty := in_msg.Dirty;
+        out_msg.Acks := in_msg.Acks;
+        out_msg.MessageSize := in_msg.MessageSize;
+      }
+    }
+  }
+
+  action(forwardResponseMessageToWaiters, "frmtw", desc="...") {
+    DirEntry dir_entry := getDirEntry(address);
+    //assert(is_valid(tbe));
+    if(!is_valid(tbe)) {
+      DPRINTF(RubyBridge, "Response from Owner to Waiters (Owner: %s, Addr: %#x)\n", 
+        dir_entry.Owner, address);
+        error("No TBE");
+    }
+
+    peek(unblockNetwork_l2_in, MoesiResponseMsg) {
+      DPRINTF(RubyBridge, "%s Response from Owner to Waiters (Owner: %s, Waiters: %s, SenMachine: %s, Addr: %#x)\n", 
+        in_msg.Type, dir_entry.Owner, tbe.DataWaiters, in_msg.SenderMachine, address);
+      assert(in_msg.Sender == dir_entry.Owner);
+      assert(tbe.DataWaiters.count() == 1);
+      enqueue(responseNetwork_dir_out, CxlResponseMsg) {
+        out_msg.addr := in_msg.addr;
+        out_msg.Type := resp_moesi2cxl(in_msg.Type);
+        out_msg.Destination.addNetDest(tbe.DataWaiters);
+        out_msg.Sender := machineID;
+        out_msg.SenderMachine := MachineType:Bridge;
+        out_msg.MessageSize := in_msg.MessageSize;
+        out_msg.DataBlk := in_msg.DataBlk;
+        out_msg.Dirty := in_msg.Dirty;
+        out_msg.Acks := in_msg.Acks;
+        out_msg.MessageSize := in_msg.MessageSize;
+      }
+    }
+  }
+
+  action(popL2RequestQueue, "l2o", desc="Pop request queue.") {
+    requestQueue_l2_in.dequeue(clockEdge());
+  }
+
+  action(popDirRequestQueue, "do", desc="Pop request queue.") {
+    requestQueue_dir_in.dequeue(clockEdge());
+  }
+
+  action(popL2UnblockQueue, "l2u", desc="Pop unblock queue.") {
+    unblockNetwork_l2_in.dequeue(clockEdge());
+  }
+
+  action(popDirUnblockQueue, "du", desc="Pop unblock queue.") {
+    unblockNetwork_dir_in.dequeue(clockEdge());
+  }
+
+  action(allocateCache, "i", desc="Allocate Cache") {
+    localDirectory.allocate(address);
+    DirEntry dir_entry := getDirEntry(address);
+    peek(requestQueue_l2_in, MoesiRequestMsg) {
+      dir_entry.Owner := in_msg.Requestor;
+    }
+  }
+
+  action(deallocateCache, "s", desc="Deallocate external TBE") {
+    localDirectory.deallocate(address);
+  }
+
+  action(allocateTBE, "at", desc="Allocate Cache") {
+    //DPRINTF(RubyBridge, "Allocate TBE for %#x\n", address);
+    peek(requestQueue_dir_in, CxlRequestMsg) {
+      DPRINTF(RubyBridge, "Allocate TBE for %#x for %s\n", address, in_msg.Type);
+    }
+    
+    assert(!TBEs.isPresent(address));
+    check_allocate(TBEs);
+    TBEs.allocate(address);
+    set_tbe(TBEs[address]);
+    tbe.DataWaiters.clear();
+  }
+
+  action(deallocateTBE, "dt", desc="Deallocate external TBE") {
+    peek(unblockNetwork_l2_in, MoesiResponseMsg) {
+      DPRINTF(RubyBridge, "Deallocate TBE for %#x with %s\n", address, in_msg.Type);
+    }
+    TBEs.deallocate(address);
+    unset_tbe();
+  }
+
+  action(recordRequestorToTBE, "rrtt", desc="record requestor") {
+    assert(is_valid(tbe));
+    assert(tbe.DataWaiters.count() == 0);
+    peek(requestQueue_dir_in, CxlRequestMsg) {
+      tbe.DataWaiters.add(in_msg.Requestor);
+    }
+  }
+
+  action(stall, "w", desc="Stall") {
+    
+  }
+
+  transition(I, {GetS, GetX, DirtyWriteback}, W) {
+    allocateCache;
+    forwardTranslatedMessage;
+    popL2RequestQueue;
+  }
+
+  transition(W, {FwdGetS, FwdGetX, FwdInv}, W) {
+    allocateTBE;
+    recordRequestorToTBE;
+    forwardRequestToOwner;
+    popDirRequestQueue;
+  }
+
+  transition(W, OwnGetX, W) {
+    sendRequestBackToOwner;
+    popDirRequestQueue;
+  }
+
+  transition(W, {GetS, GetX, PutO, PutX, PutOSharers, CleanWriteback, DirtyWriteback}, W) {
+     forwardTranslatedMessage;
+     popL2RequestQueue;
+  }
+
+  transition({W, I}, {Unblock, UnblockExclusive}) {
+    forwardUnblockMessage;
+    popL2UnblockQueue;
+  }
+
+  transition(W, {Data, DataExclusive, Ack}, W) {
+    forwardResponseMessage;
+    popDirUnblockQueue;
+  }
+
+  transition(W, {FwdData, FwdDataExclusive, FwdAck}, W) {
+    forwardResponseMessageToWaiters;
+    deallocateTBE;
+    popL2UnblockQueue;
+  }
+
+  transition(W, {WriteBackAck, WriteBackNack}, I) {
+    forwardResponseMessage;
+    deallocateCache;
+    popDirUnblockQueue;
+  }
+
+}

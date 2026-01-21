@@ -1,0 +1,8 @@
+config PROTOCOL
+    default "MESI_MOESI" if RUBY_MESI_MOESI
+
+
+cont_choice "Ruby protocol"
+    config RUBY_MESI_MOESI
+        bool "MESI_MOESI"
+endchoice

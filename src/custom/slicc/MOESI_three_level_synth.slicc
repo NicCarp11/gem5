@@ -1,0 +1,8 @@
+protocol "MOESI_three_level_synth";
+
+include "RubySlicc_interfaces.slicc";
+include "MOESI_unord_MOESI_unord_msg_synth.sm";
+include "MOESI_unord_MOESI_unord_cache_synth.sm";
+include "MOESI_unord_MOESI_unord_proxy1_synth.sm";
+include "MOESI_unord_MOESI_unord_proxy2_synth.sm";
+include "MOESI_unord_MOESI_unord_dir_synth.sm";

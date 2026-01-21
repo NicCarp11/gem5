@@ -78,11 +78,11 @@ AbstractController::AbstractController(const Params &p)
 void
 AbstractController::init()
 {
-    stats.delayHistogram.init(10);
+    stats.delayHistogram.init(160);
     uint32_t size = Network::getNumberOfVirtualNetworks();
     for (uint32_t i = 0; i < size; i++) {
         stats.delayVCHistogram.push_back(new statistics::Histogram(this));
-        stats.delayVCHistogram[i]->init(10);
+        stats.delayVCHistogram[i]->init(160);
     }
 
     if (getMemReqQueue()) {

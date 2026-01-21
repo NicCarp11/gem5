@@ -41,28 +41,28 @@
 machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
  : CacheMemory * cache;
    int l2_select_num_bits;
-   Cycles l1_request_latency := 2;
-   Cycles l1_response_latency := 2;
+   Cycles l1_request_latency := 1;
+   Cycles l1_response_latency := 1;
    Cycles to_l2_latency := 1;
 
    // Message Buffers between the L1 and the L0 Cache
    // From the L1 cache to the L0 cache
-   MessageBuffer * bufferToL0, network="To";
+   MessageBuffer * bufferToL0, network="To", virtual_network="3", vnet_type="request";
 
    // From the L0 cache to the L1 cache
-   MessageBuffer * bufferFromL0, network="From";
+   MessageBuffer * bufferFromL0, network="From", virtual_network="3", vnet_type="response";
 
    // Message queue from this L1 cache TO the network / L2
-   MessageBuffer * requestToL2, network="To", virtual_network="0",
+   MessageBuffer * requestToL2, network="To", virtual_network="2",
         vnet_type="request";
 
    MessageBuffer * responseToL2, network="To", virtual_network="1",
         vnet_type="response";
-   MessageBuffer * unblockToL2, network="To", virtual_network="2",
+   MessageBuffer * unblockToL2, network="To", virtual_network="0",
         vnet_type="unblock";
 
    // To this L1 cache FROM the network / L2
-   MessageBuffer * requestFromL2, network="From", virtual_network="2",
+   MessageBuffer * requestFromL2, network="From", virtual_network="0",
         vnet_type="request";
    MessageBuffer * responseFromL2, network="From", virtual_network="1",
         vnet_type="response";
@@ -90,9 +90,9 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     // For all of the following states, invalidate
     // message has been sent to L0 cache. The response
     // from the L0 cache has not been seen yet.
-    S_IL0, AccessPermission:Busy, desc="Shared in L1, invalidation sent to L0, have not seen response yet";
-    E_IL0, AccessPermission:Busy, desc="Exclusive in L1, invalidation sent to L0, have not seen response yet";
-    M_IL0, AccessPermission:Busy, desc="Modified in L1, invalidation sent to L0, have not seen response yet";
+    S_IL0, AccessPermission:Read_Only, desc="Shared in L1, invalidation sent to L0, have not seen response yet";
+    E_IL0, AccessPermission:Maybe_Stale, desc="Exclusive in L1, invalidation sent to L0, have not seen response yet";
+    M_IL0, AccessPermission:Maybe_Stale, desc="Modified in L1, invalidation sent to L0, have not seen response yet";
     MM_IL0, AccessPermission:Read_Write, desc="Invalidation sent to L0, have not seen response yet";
     SM_IL0, AccessPermission:Busy, desc="Invalidation sent to L0, have not seen response yet";
   }
@@ -229,6 +229,10 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
     } else {
       testAndRead(addr, getCacheEntry(addr).DataBlk, pkt);
     }
+  }
+
+  int functionalReadPriority() {
+    return 10;
   }
 
   int functionalWrite(Addr addr, Packet *pkt) {
@@ -574,7 +578,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
           out_msg.addr := address;
           out_msg.Class := CoherenceClass:INV_OWN;
           out_msg.Sender := machineID;
-          out_msg.Dest := createMachineID(MachineType:L0Cache, version);
+out_msg.Destination.add(createMachineID(MachineType:L0Cache, version));
           out_msg.MessageSize := MessageSizeType:Control;
       }
   }
@@ -584,7 +588,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
           out_msg.addr := address;
           out_msg.Class := CoherenceClass:INV_ELSE;
           out_msg.Sender := machineID;
-          out_msg.Dest := createMachineID(MachineType:L0Cache, version);
+out_msg.Destination.add(createMachineID(MachineType:L0Cache, version));
           out_msg.MessageSize := MessageSizeType:Control;
       }
   }
@@ -639,7 +643,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
           out_msg.addr := address;
           out_msg.Class := CoherenceClass:DATA;
           out_msg.Sender := machineID;
-          out_msg.Dest := createMachineID(MachineType:L0Cache, version);
+out_msg.Destination.add(createMachineID(MachineType:L0Cache, version));
           out_msg.DataBlk := cache_entry.DataBlk;
           out_msg.MessageSize := MessageSizeType:Response_Data;
       }
@@ -654,7 +658,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
           out_msg.addr := address;
           out_msg.Class := CoherenceClass:DATA_EXCLUSIVE;
           out_msg.Sender := machineID;
-          out_msg.Dest := createMachineID(MachineType:L0Cache, version);
+out_msg.Destination.add(createMachineID(MachineType:L0Cache, version));
           out_msg.DataBlk := cache_entry.DataBlk;
           out_msg.Dirty := cache_entry.Dirty;
           out_msg.MessageSize := MessageSizeType:Response_Data;
@@ -672,7 +676,7 @@ machine(MachineType:L1Cache, "MESI Directory L1 Cache CMP")
           out_msg.addr := address;
           out_msg.Class := CoherenceClass:STALE_DATA;
           out_msg.Sender := machineID;
-          out_msg.Dest := createMachineID(MachineType:L0Cache, version);
+out_msg.Destination.add(createMachineID(MachineType:L0Cache, version));
           out_msg.DataBlk := cache_entry.DataBlk;
           out_msg.Dirty := cache_entry.Dirty;
           out_msg.MessageSize := MessageSizeType:Response_Data;

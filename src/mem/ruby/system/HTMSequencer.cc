@@ -79,12 +79,12 @@ HTMSequencer::HTMSequencer(const RubyHTMSequencerParams &p)
 
     // hardware transactional memory
     m_htm_transaction_cycles
-        .init(10)
+        .init(160)
         .flags(statistics::pdf | statistics::dist | statistics::nozero |
             statistics::nonan)
         ;
     m_htm_transaction_instructions
-        .init(10)
+        .init(160)
         .flags(statistics::pdf | statistics::dist | statistics::nozero |
             statistics::nonan)
         ;

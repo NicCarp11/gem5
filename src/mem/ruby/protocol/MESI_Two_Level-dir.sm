@@ -29,9 +29,10 @@
 machine(MachineType:Directory, "MESI Two Level directory protocol")
  : DirectoryMemory * directory;
    Cycles to_mem_ctrl_latency := 1;
+   Cycles to_dir_latency := 6;
    Cycles directory_latency := 6;
 
-   MessageBuffer * requestToDir, network="From", virtual_network="0",
+   MessageBuffer * requestToDir, network="From", virtual_network="2",
         vnet_type="request";
    MessageBuffer * responseToDir, network="From", virtual_network="1",
         vnet_type="response";
@@ -163,6 +164,10 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
     }
   }
 
+  int functionalReadPriority() {
+    return 30;
+  }
+
   int functionalWrite(Addr addr, Packet *pkt) {
     int num_functional_writes := 0;
 
@@ -250,7 +255,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
   // Actions
   action(a_sendAck, "a", desc="Send ack to L2") {
     peek(responseNetwork_in, ResponseMsg) {
-      enqueue(responseNetwork_out, ResponseMsg, to_mem_ctrl_latency) {
+      enqueue(responseNetwork_out, ResponseMsg, to_dir_latency) {
         out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:MEMORY_ACK;
         out_msg.Sender := machineID;
@@ -262,7 +267,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
 
   action(d_sendData, "d", desc="Send data to requestor") {
     peek(memQueue_in, MemoryMsg) {
-      enqueue(responseNetwork_out, ResponseMsg, to_mem_ctrl_latency) {
+      enqueue(responseNetwork_out, ResponseMsg, to_dir_latency) {
         out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:MEMORY_DATA;
         out_msg.Sender := machineID;
@@ -280,7 +285,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
   // Actions
   action(aa_sendAck, "aa", desc="Send ack to L2") {
     peek(memQueue_in, MemoryMsg) {
-      enqueue(responseNetwork_out, ResponseMsg, to_mem_ctrl_latency) {
+      enqueue(responseNetwork_out, ResponseMsg, to_dir_latency) {
         out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:MEMORY_ACK;
         out_msg.Sender := machineID;
@@ -350,7 +355,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
 
   action(dr_sendDMAData, "dr", desc="Send Data to DMA controller from directory") {
     peek(memQueue_in, MemoryMsg) {
-      enqueue(responseNetwork_out, ResponseMsg, to_mem_ctrl_latency) {
+      enqueue(responseNetwork_out, ResponseMsg, to_dir_latency) {
         assert(is_valid(tbe));
         out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:DATA;
@@ -376,7 +381,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
   }
 
   action(da_sendDMAAck, "da", desc="Send Ack to DMA controller") {
-      enqueue(responseNetwork_out, ResponseMsg, to_mem_ctrl_latency) {
+      enqueue(responseNetwork_out, ResponseMsg, to_dir_latency) {
         assert(is_valid(tbe));
         out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:ACK;
@@ -408,7 +413,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
 
   action(drp_sendDMAData, "drp", desc="Send Data to DMA controller from incoming PUTX") {
     peek(responseNetwork_in, ResponseMsg) {
-      enqueue(responseNetwork_out, ResponseMsg, to_mem_ctrl_latency) {
+      enqueue(responseNetwork_out, ResponseMsg, to_dir_latency) {
         assert(is_valid(tbe));
         out_msg.addr := address;
         out_msg.Type := CoherenceResponseType:DATA;

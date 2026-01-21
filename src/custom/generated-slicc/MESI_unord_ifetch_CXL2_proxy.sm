@@ -2081,6 +2081,7 @@ machine(MachineType:L0Cache, "Proxy cache controller")
               //tbe.proxy_msgL1_exclusiveL1 := in_msg.exclusiveL1;
               setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1I__C__I_store);
               DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              cache.setMRU(LineAddress);
               reqfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
             } else if (in_msg.Type == CoherenceMessageType:GetSL1) {
@@ -2109,6 +2110,7 @@ machine(MachineType:L0Cache, "Proxy cache controller")
                 out_msg.exclusiveL1 := in_msg.exclusiveL1;
               }
               setState(tbe, getEntry(LineAddress), LineAddress, State:GetSL1I__C__I_load);
+              cache.setMRU(LineAddress);
               DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               reqfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);

@@ -1,0 +1,14 @@
+config PROTOCOL
+    default "MESI_one_level_synth" if RUBY_MESI_UNORD_ONE_LEVEL_SYNTH
+    default "MOESI_one_level_synth" if RUBY_MOESI_UNORD_ONE_LEVEL_SYNTH
+    default "MESIF_one_level_synth" if RUBY_MESIF_UNORD_ONE_LEVEL_SYNTH
+
+
+cont_choice "Ruby protocol"
+    config RUBY_MESI_UNORD_ONE_LEVEL_SYNTH
+        bool "MESI_one_level_synth"
+    config RUBY_MOESI_UNORD_ONE_LEVEL_SYNTH
+        bool "MOESI_one_level_synth"
+    config RUBY_MESIF_UNORD_ONE_LEVEL_SYNTH
+        bool "MESIF_one_level_synth"
+endchoice

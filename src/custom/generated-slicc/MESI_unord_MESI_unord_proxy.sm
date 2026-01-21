@@ -36,10 +36,10 @@ machine(MachineType:L0Cache, "Proxy cache controller")
     I__C__M, AccessPermission:Read_Write, desc="... TODO ...";
     I__C__S, AccessPermission:Read_Only, desc="... TODO ...";
     M__C__M, AccessPermission:Maybe_Stale, desc="... TODO ...";
-    S__C__M, AccessPermission:Read_Write, desc="... TODO ...";
+    S__C__M, AccessPermission:Read_Only, desc="... TODO ...";
     evictI__C__I_evict, AccessPermission:Busy, desc="... TODO ...";
-    evictI__C__M_evict, AccessPermission:Read_Only, desc="... TODO ...";
-    evictI__C__S_evict, AccessPermission:Read_Only, desc="... TODO ...";
+    evictI__C__M_evict, AccessPermission:Busy, desc="... TODO ...";
+    evictI__C__S_evict, AccessPermission:Busy, desc="... TODO ...";
     evictdM_x_pI_store_GetM_Ack_AD__C__M, AccessPermission:Busy, desc="... TODO ...";
     evictdM_x_pI_store__C__M, AccessPermission:Busy, desc="... TODO ...";
 
@@ -2508,6 +2508,7 @@ machine(MachineType:L0Cache, "Proxy cache controller")
               getEntry(LineAddress).proxy_msgL1_src := in_msg.Sender;
               setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1I__C__I_store);
               DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              cache.setMRU(LineAddress);
               reqfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
             } else if (in_msg.Type == CoherenceMessageType:GetSL1) {
@@ -2533,6 +2534,7 @@ machine(MachineType:L0Cache, "Proxy cache controller")
               }
               tbe.acksReceivedL2 := 0;
               getEntry(LineAddress).proxy_msgL1_src := in_msg.Sender;
+              cache.setMRU(LineAddress);
               setState(tbe, getEntry(LineAddress), LineAddress, State:GetSL1I__C__I_store);
               DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               reqfrom_in.dequeue(clockEdge());
@@ -3466,9 +3468,13 @@ machine(MachineType:L0Cache, "Proxy cache controller")
       unset_cache_entry();
     }
     action(a_allocTBE, "aTBE", desc="Allocate TBE entry.") {
+      DPRINTF(RubySlicc, "Allocating TBE for address: %#x\n", address);
       check_allocate(TBEs);
+      DPRINTF(RubySlicc, "Check allocate passed for address: %#x\n", address);
       TBEs.allocate(address);
+      DPRINTF(RubySlicc, "Allocated TBE for address: %#x\n", address);
       set_tbe(TBEs[address]);
+      DPRINTF(RubySlicc, "Set TBE for address: %#x\n", address);
       tbe.dirty := false;
       tbe.acksExpectedL1 := 0;
       tbe.acksReceivedL1 := 0;
@@ -3476,7 +3482,9 @@ machine(MachineType:L0Cache, "Proxy cache controller")
       tbe.acksReceivedL2 := 0;
     }
     action(a_deallocTBE, "dTBE", desc="Deallocate TBE entry.") {
+      DPRINTF(RubySlicc, "Deallocating TBE for address: %#x\n", address);
       if (is_valid(tbe)) {
+      DPRINTF(RubySlicc, "Deallocated TBE for address: %#x\n", address);
         TBEs.deallocate(address);
         unset_tbe();
       }

@@ -40,26 +40,27 @@
 
 machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
  : CacheMemory * L2cache;
-   Cycles l2_request_latency := 2;
-   Cycles l2_response_latency := 2;
+   Cycles l2_request_latency := 1;
+   Cycles l2_response_latency := 1;
    Cycles to_l1_latency := 1;
+   Cycles recycle_latency := 10;
 
   // Message Queues
   // From local bank of L2 cache TO the network
-  MessageBuffer * DirRequestFromL2Cache, network="To", virtual_network="0",
+  MessageBuffer * DirRequestFromL2Cache, network="To", virtual_network="2",
     vnet_type="request";  // this L2 bank -> Memory
 
-  MessageBuffer * L1RequestFromL2Cache, network="To", virtual_network="2",
+  MessageBuffer * L1RequestFromL2Cache, network="To", virtual_network="0",
     vnet_type="request";  // this L2 bank -> a local L1
 
   MessageBuffer * responseFromL2Cache, network="To", virtual_network="1",
     vnet_type="response";  // this L2 bank -> a local L1 || Memory
 
   // FROM the network to this local bank of L2 cache
-  MessageBuffer * unblockToL2Cache, network="From", virtual_network="2",
+  MessageBuffer * unblockToL2Cache, network="From", virtual_network="0",
     vnet_type="unblock";  // a local L1 || Memory -> this L2 bank
 
-  MessageBuffer * L1RequestToL2Cache, network="From", virtual_network="0",
+  MessageBuffer * L1RequestToL2Cache, network="From", virtual_network="2",
     vnet_type="request";  // a local L1 -> this L2 bank
 
   MessageBuffer * responseToL2Cache, network="From", virtual_network="1",
@@ -236,6 +237,10 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
     } else {
       testAndRead(addr, getCacheEntry(addr).DataBlk, pkt);
     }
+  }
+
+  int functionalReadPriority() {
+    return 20;
   }
 
   int functionalWrite(Addr addr, Packet *pkt) {
@@ -607,6 +612,7 @@ machine(MachineType:L2Cache, "MESI Directory L2 Cache CMP")
 
   // OTHER ACTIONS
   action(i_allocateTBE, "i", desc="Allocate TBE for request") {
+    DPRINTF(RubySlicc, "Secondo me e' qua l'errore\n");
     check_allocate(TBEs);
     assert(is_valid(cache_entry));
     TBEs.allocate(address);

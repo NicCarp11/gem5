@@ -1,0 +1,6 @@
+protocol "MESIF_one_level_synth";
+
+include "RubySlicc_interfaces.slicc";
+include "MESIF_unord_MESIF_unord_msg_synth.sm";
+include "MESIF_unord_MESIF_unord_cache_synth.sm";
+include "MESIF_unord_MESIF_unord_dir_synth.sm";
