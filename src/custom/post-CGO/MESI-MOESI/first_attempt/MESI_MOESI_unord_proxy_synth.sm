@@ -22,6 +22,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
     Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, AccessPermission:Busy, desc="... TODO ...";
     Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, AccessPermission:Busy, desc="... TODO ...";
     Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, AccessPermission:Busy, desc="... TODO ...";
+    Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, AccessPermission:Busy, desc="... TODO ...";
     Fwd_GetML2dM_x_pI_store__C__E, AccessPermission:Busy, desc="... TODO ...";
     Fwd_GetML2dM_x_pI_store__C__M, AccessPermission:Busy, desc="... TODO ...";
     Fwd_GetML2dM_x_pI_store__C__O, AccessPermission:Busy, desc="... TODO ...";
@@ -343,7 +344,34 @@ machine(MachineType:L2Cache, "Proxy cache controller")
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
-            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              if (is_invalid(tbe)) {
+                if (TBEs.areNSlotsAvailable(1, clockEdge())) {
+                  trigger(Event:allocTBE, LineAddress, getEntry(LineAddress), tbe);
+                } else {
+                  DPRINTF(RubySlicc, "recycling %s on fwdfrom_in (addr: %#x)\n", st, LineAddress);
+                  fwdfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+                  trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+              tbe.acksReceivedL1 := 0;
+              enqueue(fwdto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Control;
+                out_msg.Destination.add(getEntry(LineAddress).ownerL1);
+                out_msg.Type := CoherenceMessageType:Fwd_GetML1;
+                out_msg.Sender := machineID;
+                out_msg.acksExpectedL1 := 0;
+              }
+              getEntry(LineAddress).ownerL1 := machineID;
+              getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+              getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
+              getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
+              setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store__C__O);
+              DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              fwdfrom_in.dequeue(clockEdge());
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            }else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
               if (is_invalid(tbe)) {
                 if (TBEs.areNSlotsAvailable(1, clockEdge())) {
                   trigger(Event:allocTBE, LineAddress, getEntry(LineAddress), tbe);
@@ -443,6 +471,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 474\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                   trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
                 }
@@ -512,6 +541,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 544\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -544,6 +574,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 577\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -576,6 +607,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 610\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -675,6 +707,40 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
                     out_msg.acksExpectedL2 := getEntry(LineAddress).proxy_msgL2_acksExpectedL2;
                   }
+                  // enqueue(respto_out, CoherenceMessage, responseLatency) {
+                  //   out_msg.LineAddress := LineAddress;
+                  //   out_msg.MessageSize := MessageSizeType:Control;
+                  //   out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                  //   out_msg.Type := CoherenceMessageType:UnblockL2;
+                  //   out_msg.Sender := machineID;
+                  // }
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1I__C__I_store);
+                  DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  fwdfrom_in.dequeue(clockEdge());
+                  trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              tbe.acksReceivedL1 := 0;
+              getEntry(LineAddress).ownerL1 := machineID;
+              //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+              tbe.acksExpectedL1 := getEntry(LineAddress).cacheL1.count();
+              if (tbe.acksExpectedL1 == tbe.acksReceivedL1) {
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
+                  getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_ADL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                    out_msg.acksExpectedL2 := getEntry(LineAddress).proxy_msgL2_acksExpectedL2;
+                  }
                   enqueue(respto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
                     out_msg.MessageSize := MessageSizeType:Control;
@@ -682,6 +748,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 751\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1I__C__I_store);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -715,6 +782,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 785\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1I__C__O_store);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -732,6 +800,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 803\n");
                 enqueue(respto_out, CoherenceMessage, responseLatency) {
                   out_msg.LineAddress := LineAddress;
                   out_msg.MessageSize := MessageSizeType:Data;
@@ -904,6 +973,27 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
                 out_msg.acksExpectedL2 := in_msg.acksExpectedL2;
               }
+              // enqueue(respto_out, CoherenceMessage, responseLatency) {
+              //   out_msg.LineAddress := LineAddress;
+              //   out_msg.MessageSize := MessageSizeType:Control;
+              //   out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+              //   out_msg.Type := CoherenceMessageType:UnblockL2;
+              //   out_msg.Sender := machineID;
+              // }
+              setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1O__C__I_store);
+              DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              fwdfrom_in.dequeue(clockEdge());
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              enqueue(respto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Data;
+                out_msg.Destination.add(in_msg.Sender);
+                out_msg.Type := CoherenceMessageType:GetM_Ack_ADL2;
+                out_msg.Sender := machineID;
+                out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                out_msg.acksExpectedL2 := in_msg.acksExpectedL2;
+              }
               enqueue(respto_out, CoherenceMessage, responseLatency) {
                 out_msg.LineAddress := LineAddress;
                 out_msg.MessageSize := MessageSizeType:Control;
@@ -911,6 +1001,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.Type := CoherenceMessageType:UnblockL2;
                 out_msg.Sender := machineID;
               }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 1004\n");
               setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1O__C__I_store);
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
@@ -931,6 +1022,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.Type := CoherenceMessageType:UnblockL2;
                 out_msg.Sender := machineID;
               }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 1025\n");
               setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1O__C__O_store);
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
@@ -946,6 +1038,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 1041\n");
                 getEntry(LineAddress).cacheL1.remove(getEntry(LineAddress).proxy_msgL1_src);
                 if (getEntry(LineAddress).ownerL1 == getEntry(LineAddress).proxy_msgL1_src) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
@@ -1213,9 +1306,8 @@ machine(MachineType:L2Cache, "Proxy cache controller")
             }
           } else if (st == State:GetML1S__C__O_store) {
             if (in_msg.Type == CoherenceMessageType:Fwd_GetML2) {
-              tbe.acksReceivedL1 := 0;
-              if (getEntry(LineAddress).cacheL1.isElement(machineID)) {
-                getEntry(LineAddress).cacheL1.remove(machineID);
+              tbe.acksReceivedL1 := 0; 
+              if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
                 if (getEntry(LineAddress).cacheL1.count() != 0) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
@@ -1244,13 +1336,13 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
                         out_msg.acksExpectedL2 := getEntry(LineAddress).proxy_msgL2_acksExpectedL2;
                       }
-                      enqueue(respto_out, CoherenceMessage, responseLatency) {
-                        out_msg.LineAddress := LineAddress;
-                        out_msg.MessageSize := MessageSizeType:Control;
-                        out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
-                        out_msg.Type := CoherenceMessageType:UnblockL2;
-                        out_msg.Sender := machineID;
-                      }
+                      // enqueue(respto_out, CoherenceMessage, responseLatency) {
+                      //   out_msg.LineAddress := LineAddress;
+                      //   out_msg.MessageSize := MessageSizeType:Control;
+                      //   out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                      //   out_msg.Type := CoherenceMessageType:UnblockL2;
+                      //   out_msg.Sender := machineID;
+                      // }
                       setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__I_store);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -1261,14 +1353,16 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
                     getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
                     getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
-                    setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store);
+                    setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store);
                     DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                     fwdfrom_in.dequeue(clockEdge());
                     trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
                   }
                 }
               }
-              else if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              tbe.acksReceivedL1 := 0; 
+              if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
                 if (getEntry(LineAddress).cacheL1.count() != 0) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
@@ -1304,6 +1398,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 1401\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__I_store);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -1359,6 +1454,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 1457\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__O_store);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -1411,6 +1507,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 1510\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__O_store);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -1439,6 +1536,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 1539\n");
                 if (getEntry(LineAddress).cacheL1.isElement(getEntry(LineAddress).proxy_msgL1_src)) {
                   getEntry(LineAddress).cacheL1.remove(getEntry(LineAddress).proxy_msgL1_src);
                   if (getEntry(LineAddress).cacheL1.count() == 0) {
@@ -1796,6 +1894,40 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
                     out_msg.acksExpectedL2 := getEntry(LineAddress).proxy_msgL2_acksExpectedL2;
                   }
+                  // enqueue(respto_out, CoherenceMessage, responseLatency) {
+                  //   out_msg.LineAddress := LineAddress;
+                  //   out_msg.MessageSize := MessageSizeType:Control;
+                  //   out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                  //   out_msg.Type := CoherenceMessageType:UnblockL2;
+                  //   out_msg.Sender := machineID;
+                  // }
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:GetSL1I__C__I_store);
+                  DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  fwdfrom_in.dequeue(clockEdge());
+                  trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              tbe.acksReceivedL1 := 0;
+              getEntry(LineAddress).ownerL1 := machineID;
+              //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+              tbe.acksExpectedL1 := getEntry(LineAddress).cacheL1.count();
+              if (tbe.acksExpectedL1 == tbe.acksReceivedL1) {
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
+                  getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_ADL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                    out_msg.acksExpectedL2 := getEntry(LineAddress).proxy_msgL2_acksExpectedL2;
+                  }
                   enqueue(respto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
                     out_msg.MessageSize := MessageSizeType:Control;
@@ -1803,6 +1935,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 1938\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:GetSL1I__C__I_store);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -1836,6 +1969,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 1972\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:GetSL1I__C__O_store);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -1853,6 +1987,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 1990\n");
                 enqueue(respto_out, CoherenceMessage, responseLatency) {
                   out_msg.LineAddress := LineAddress;
                   out_msg.MessageSize := MessageSizeType:Data;
@@ -1954,6 +2089,30 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
                 }
               }
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              tbe.acksReceivedL1 := 0;
+              getEntry(LineAddress).ownerL1 := machineID;
+              //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+              tbe.acksExpectedL1 := getEntry(LineAddress).cacheL1.count();
+              if (tbe.acksExpectedL1 == tbe.acksReceivedL1) {
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
+                  getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_DL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
+                  trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
             } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
               tbe.acksReceivedL1 := 0;
               getEntry(LineAddress).ownerL1 := machineID;
@@ -1981,6 +2140,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 2143\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -2012,6 +2172,35 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
                 }
               
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              getEntry(LineAddress).ownerL1 := machineID;
+              //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);        
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
+                  getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_DL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Control;
+                    out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                    out_msg.Type := CoherenceMessageType:UnblockL2;
+                    out_msg.Sender := machineID;
+                  }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 2199\n");
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
+                  trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+                }
+              
             } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
               getEntry(LineAddress).ownerL1 := machineID;
               //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
@@ -2036,6 +2225,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 2228\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -2046,7 +2236,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
               trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
             }
           } else if (st == State:I__C__O) {
-            if (in_msg.Type == CoherenceMessageType:Fwd_GetML2) {
+            if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
               getEntry(LineAddress).ownerL1 := machineID;
               //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
                 getEntry(LineAddress).cacheL1.remove(machineID);
@@ -2072,6 +2262,37 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 2265\n");
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
+                  trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
+                
+              }
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetML2) {
+              getEntry(LineAddress).ownerL1 := machineID;
+              //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
+                  getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
+                  DPRINTF(RubySlicc, "Data sent: %#x\n", getCacheBlock(tbe, getEntry(LineAddress), LineAddress));
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_ADL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                    out_msg.acksExpectedL2 := getEntry(LineAddress).proxy_msgL2_acksExpectedL2;
+                  }
+                  // enqueue(respto_out, CoherenceMessage, responseLatency) {
+                  //   out_msg.LineAddress := LineAddress;
+                  //   out_msg.MessageSize := MessageSizeType:Control;
+                  //   out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                  //   out_msg.Type := CoherenceMessageType:UnblockL2;
+                  //   out_msg.Sender := machineID;
+                  // }
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                   trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
                 
@@ -2100,6 +2321,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 2324\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -2195,6 +2417,33 @@ machine(MachineType:L2Cache, "Proxy cache controller")
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              if (is_invalid(tbe)) {
+                if (TBEs.areNSlotsAvailable(1, clockEdge())) {
+                  trigger(Event:allocTBE, LineAddress, getEntry(LineAddress), tbe);
+                } else {
+                  DPRINTF(RubySlicc, "recycling %s on fwdfrom_in (addr: %#x)\n", st, LineAddress);
+                  fwdfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+                  trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+              tbe.acksReceivedL1 := 0;
+              enqueue(fwdto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Control;
+                out_msg.Destination.add(getEntry(LineAddress).ownerL1);
+                out_msg.Type := CoherenceMessageType:Fwd_GetML1;
+                out_msg.Sender := machineID;
+                out_msg.acksExpectedL1 := 0;
+              }
+              getEntry(LineAddress).ownerL1 := machineID;
+              getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+              getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
+              getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
+              setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store__C__O);
+              DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              fwdfrom_in.dequeue(clockEdge());
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
             } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
               if (is_invalid(tbe)) {
                 if (TBEs.areNSlotsAvailable(1, clockEdge())) {
@@ -2228,42 +2477,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
           } else if (st == State:S__C__E) {
             if (in_msg.Type == CoherenceMessageType:Fwd_GetML2) {
               tbe.acksReceivedL1 := 0;
-              if (getEntry(LineAddress).cacheL1.isElement(machineID)) {
-                getEntry(LineAddress).cacheL1.remove(machineID);
-                if (getEntry(LineAddress).cacheL1.count() != 0) {
-                  enqueue(fwdto_out, CoherenceMessage, responseLatency) {
-                    out_msg.LineAddress := LineAddress;
-                    out_msg.MessageSize := MessageSizeType:Control;
-                    out_msg.Destination := getEntry(LineAddress).cacheL1;
-                    out_msg.Type := CoherenceMessageType:InvL1;
-                    out_msg.Sender := machineID;
-                  }
-                  getEntry(LineAddress).ownerL1 := machineID;
-                  tbe.acksExpectedL1 := getEntry(LineAddress).cacheL1.count();
-                  getEntry(LineAddress).cacheL1.clear();
-                  //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
-                  if (tbe.acksExpectedL1 == tbe.acksReceivedL1) {
-                    getEntry(LineAddress).cacheL1.remove(machineID);
-                    if (getEntry(LineAddress).ownerL1 == machineID) {
-                      //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
-                      getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
-                      getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
-                      getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
-                      enqueue(respto_out, CoherenceMessage, responseLatency) {
-                        out_msg.LineAddress := LineAddress;
-                        out_msg.MessageSize := MessageSizeType:Data;
-                        out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
-                        out_msg.Type := CoherenceMessageType:GetM_Ack_DL2;
-                        out_msg.Sender := machineID;
-                        out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
-                      }
-                      setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
-                      trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
-                    }
-                  }
-                }
-              }
-              else if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
+              if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
                 if (getEntry(LineAddress).cacheL1.count() != 0) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
@@ -2394,6 +2608,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 2611\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -2437,6 +2652,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 2655\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -2519,8 +2735,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 }
               }
               tbe.acksReceivedL1 := 0;
-              if (getEntry(LineAddress).cacheL1.isElement(machineID)) {
-                getEntry(LineAddress).cacheL1.remove(machineID);
+              if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
                 if (getEntry(LineAddress).cacheL1.count() != 0) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
@@ -2562,7 +2777,18 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   }
                 }
               }
-              else if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              if (is_invalid(tbe)) {
+                if (TBEs.areNSlotsAvailable(1, clockEdge())) {
+                  trigger(Event:allocTBE, LineAddress, getEntry(LineAddress), tbe);
+                } else {
+                  DPRINTF(RubySlicc, "recycling %s on fwdfrom_in (addr: %#x)\n", st, LineAddress);
+                  fwdfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+                  trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+              tbe.acksReceivedL1 := 0;
+              if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
                 if (getEntry(LineAddress).cacheL1.count() != 0) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
@@ -2579,7 +2805,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
                     getEntry(LineAddress).proxy_msgL2_acksExpectedL2 := in_msg.acksExpectedL2;
                     getEntry(LineAddress).proxy_msgL2_exclusiveL2 := in_msg.exclusiveL2;
-                    setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M);
+                    setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O);
                     DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                     fwdfrom_in.dequeue(clockEdge());
                     trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
@@ -2659,6 +2885,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 2888\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -2710,6 +2937,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 2940\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -2734,8 +2962,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 }
               }
               tbe.acksReceivedL1 := 0;
-              if (getEntry(LineAddress).cacheL1.isElement(machineID)) {
-                getEntry(LineAddress).cacheL1.remove(machineID);
+               if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
                 if (getEntry(LineAddress).cacheL1.count() != 0) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
@@ -2747,11 +2974,10 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   getEntry(LineAddress).ownerL1 := machineID;
                   tbe.acksExpectedL1 := getEntry(LineAddress).cacheL1.count();
                   getEntry(LineAddress).cacheL1.clear();
-                  
                   //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
                   if (tbe.acksExpectedL1 != tbe.acksReceivedL1) {
                     getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
-                    setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O);
+                    setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M);
                     DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                     fwdfrom_in.dequeue(clockEdge());
                     trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
@@ -2778,13 +3004,25 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 3007\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                       trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
                     }
                   }
                 }
               }
-              else if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              if (is_invalid(tbe)) {
+                if (TBEs.areNSlotsAvailable(1, clockEdge())) {
+                  trigger(Event:allocTBE, LineAddress, getEntry(LineAddress), tbe);
+                } else {
+                  DPRINTF(RubySlicc, "recycling %s on fwdfrom_in (addr: %#x)\n", st, LineAddress);
+                  fwdfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+                  trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+              tbe.acksReceivedL1 := 0;
+               if (getEntry(LineAddress).cacheL1.isElement(machineID) == false) {
                 if (getEntry(LineAddress).cacheL1.count() != 0) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
                     out_msg.LineAddress := LineAddress;
@@ -2826,6 +3064,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 3067\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                       trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
                     }
@@ -2886,6 +3125,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 3128\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -2936,6 +3176,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                         out_msg.Type := CoherenceMessageType:UnblockL2;
                         out_msg.Sender := machineID;
                       }
+                        DPRINTF(RubySlicc, "Inviato unblcok linea 3179\n");
                       setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                       DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                       fwdfrom_in.dequeue(clockEdge());
@@ -3208,11 +3449,32 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.Sender := machineID;
                 out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
               }
+              enqueue(respto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Control;
+                out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                out_msg.Type := CoherenceMessageType:UnblockL2;
+                out_msg.Sender := machineID;
+              }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 3459\n");
               setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__I_evict);
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
-            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              enqueue(respto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Data;
+                out_msg.Destination.add(in_msg.Sender);
+                out_msg.Type := CoherenceMessageType:GetM_Ack_DL2;
+                out_msg.Sender := machineID;
+                out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+              }
+              setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__I_evict);
+              DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              fwdfrom_in.dequeue(clockEdge());
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            }else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
               enqueue(respto_out, CoherenceMessage, responseLatency) {
                 out_msg.LineAddress := LineAddress;
                 out_msg.MessageSize := MessageSizeType:Data;
@@ -3228,6 +3490,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.Type := CoherenceMessageType:UnblockL2;
                 out_msg.Sender := machineID;
               }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 3493\n");
               setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__O_evict);
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -3249,7 +3512,28 @@ machine(MachineType:L2Cache, "Proxy cache controller")
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
-            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              enqueue(respto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Data;
+                out_msg.Destination.add(in_msg.Sender);
+                out_msg.Type := CoherenceMessageType:GetM_Ack_DL2;
+                out_msg.Sender := machineID;
+                out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+              }
+              enqueue(respto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Control;
+                out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                out_msg.Type := CoherenceMessageType:UnblockL2;
+                out_msg.Sender := machineID;
+              }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 3531\n");
+              setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__I_evict);
+              DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              fwdfrom_in.dequeue(clockEdge());
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            }else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
               enqueue(respto_out, CoherenceMessage, responseLatency) {
                 out_msg.LineAddress := LineAddress;
                 out_msg.MessageSize := MessageSizeType:Data;
@@ -3265,6 +3549,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.Type := CoherenceMessageType:UnblockL2;
                 out_msg.Sender := machineID;
               }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 3552\n");
               setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__O_evict);
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -3283,6 +3568,27 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
                 out_msg.acksExpectedL2 := in_msg.acksExpectedL2;
               }
+              // enqueue(respto_out, CoherenceMessage, responseLatency) {
+              //   out_msg.LineAddress := LineAddress;
+              //   out_msg.MessageSize := MessageSizeType:Control;
+              //   out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+              //   out_msg.Type := CoherenceMessageType:UnblockL2;
+              //   out_msg.Sender := machineID;
+              // }
+              setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__I_evict);
+              DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              fwdfrom_in.dequeue(clockEdge());
+              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetOL2) {
+              enqueue(respto_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Data;
+                out_msg.Destination.add(in_msg.Sender);
+                out_msg.Type := CoherenceMessageType:GetM_Ack_ADL2;
+                out_msg.Sender := machineID;
+                out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                out_msg.acksExpectedL2 := in_msg.acksExpectedL2;
+              }
               enqueue(respto_out, CoherenceMessage, responseLatency) {
                 out_msg.LineAddress := LineAddress;
                 out_msg.MessageSize := MessageSizeType:Control;
@@ -3290,11 +3596,12 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.Type := CoherenceMessageType:UnblockL2;
                 out_msg.Sender := machineID;
               }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 3599\n");
               setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__I_evict);
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
-            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
+            }else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
               enqueue(respto_out, CoherenceMessage, responseLatency) {
                 out_msg.LineAddress := LineAddress;
                 out_msg.MessageSize := MessageSizeType:Data;
@@ -3310,6 +3617,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                 out_msg.Type := CoherenceMessageType:UnblockL2;
                 out_msg.Sender := machineID;
               }
+                DPRINTF(RubySlicc, "Inviato unblcok linea 3620\n");
               setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__O_evict);
                DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   fwdfrom_in.dequeue(clockEdge());
@@ -3576,6 +3884,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 3887\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                   trigger(Event:deallocrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
                 }
@@ -3612,6 +3921,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 3925\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__I_store);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -3620,6 +3930,37 @@ machine(MachineType:L2Cache, "Proxy cache controller")
               }
               else if (tbe.acksExpectedL1 != tbe.acksReceivedL1) {
                 setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store);
+                DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                respfrom_in.dequeue(clockEdge());
+                trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+              }
+            } else {
+              trigger(Event:Stallrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
+            }
+          } else if (st == State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store) {
+            if (in_msg.Type == CoherenceMessageType:Inv_AckL1) {
+              tbe.acksReceivedL1 := tbe.acksReceivedL1+1;
+              if (tbe.acksExpectedL1 == tbe.acksReceivedL1) {
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  //getEntry(LineAddress).cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_ADL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                    out_msg.acksExpectedL2 := getEntry(LineAddress).proxy_msgL2_acksExpectedL2;
+                  }
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__I_store);
+                  DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  respfrom_in.dequeue(clockEdge());
+                  trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+              else if (tbe.acksExpectedL1 != tbe.acksReceivedL1) {
+                setState(tbe, getEntry(LineAddress), LineAddress, State:Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
                 trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
@@ -3744,6 +4085,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4089\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                   trigger(Event:deallocrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
                 }
@@ -3769,6 +4111,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4115\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                 trigger(Event:deallocrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
               }
@@ -3945,6 +4288,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4292\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                 trigger(Event:deallocrespfrom_in, LineAddress, getEntry(LineAddress), tbe);
               }
@@ -3973,6 +4317,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4321\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -4010,6 +4355,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4359\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -4047,6 +4393,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4397\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -4084,6 +4431,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4435\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__O_store);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -4123,6 +4471,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4475\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -4149,6 +4498,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4502\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
@@ -4187,6 +4537,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4541\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -4215,6 +4566,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4570\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
@@ -4253,6 +4605,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                     out_msg.Type := CoherenceMessageType:UnblockL2;
                     out_msg.Sender := machineID;
                   }
+                    DPRINTF(RubySlicc, "Inviato unblcok linea 4609\n");
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                   DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                   respfrom_in.dequeue(clockEdge());
@@ -4279,6 +4632,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4636\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
@@ -4418,6 +4772,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4776\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
@@ -4446,6 +4801,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4805\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
@@ -4474,6 +4830,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4834\n");
                 setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
@@ -4573,6 +4930,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4934\n");
                 enqueue(respto_out, CoherenceMessage, responseLatency) {
                   out_msg.LineAddress := LineAddress;
                   out_msg.MessageSize := MessageSizeType:Data;
@@ -4629,6 +4987,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 4991\n");
                 enqueue(respto_out, CoherenceMessage, responseLatency) {
                   out_msg.LineAddress := LineAddress;
                   out_msg.MessageSize := MessageSizeType:Data;
@@ -4993,6 +5352,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 5356\n");
                 getEntry(LineAddress).cacheL1.remove(getEntry(LineAddress).proxy_msgL1_src);
                 if (getEntry(LineAddress).ownerL1 == getEntry(LineAddress).proxy_msgL1_src) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
@@ -5157,6 +5517,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 5521\n");
                 getEntry(LineAddress).cacheL1.remove(getEntry(LineAddress).proxy_msgL1_src);
                 if (getEntry(LineAddress).ownerL1 == getEntry(LineAddress).proxy_msgL1_src) {
                   enqueue(fwdto_out, CoherenceMessage, responseLatency) {
@@ -5755,6 +6116,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 6120\n");
                 if (getEntry(LineAddress).cacheL1.isElement(getEntry(LineAddress).proxy_msgL1_src)) {
                   getEntry(LineAddress).cacheL1.remove(getEntry(LineAddress).proxy_msgL1_src);
                   if (getEntry(LineAddress).cacheL1.count() == 0) {
@@ -5944,6 +6306,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 6310\n");
                 if (getEntry(LineAddress).cacheL1.isElement(getEntry(LineAddress).proxy_msgL1_src)) {
                   getEntry(LineAddress).cacheL1.remove(getEntry(LineAddress).proxy_msgL1_src);
                   if (getEntry(LineAddress).cacheL1.count() == 0) {
@@ -6302,7 +6665,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
             if (in_msg.Type == CoherenceMessageType:WBL1) {
               if (in_msg.Sender == getEntry(LineAddress).ownerL1) {
                 setCacheBlock(tbe, getEntry(LineAddress), LineAddress, in_msg.cl);
-                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__M);
+                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
                 trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
@@ -6354,7 +6717,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
             if (in_msg.Type == CoherenceMessageType:WBL1) {
               if (in_msg.Sender == getEntry(LineAddress).ownerL1) {
                 setCacheBlock(tbe, getEntry(LineAddress), LineAddress, in_msg.cl);
-                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__M);
+                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
                 trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
@@ -6408,7 +6771,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
             if (in_msg.Type == CoherenceMessageType:WBL1) {
               if (in_msg.Sender == getEntry(LineAddress).ownerL1) {
                 setCacheBlock(tbe, getEntry(LineAddress), LineAddress, in_msg.cl);
-                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__M);
+                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
                 trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
@@ -6526,6 +6889,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 6893\n");
                 enqueue(respto_out, CoherenceMessage, responseLatency) {
                   out_msg.LineAddress := LineAddress;
                   out_msg.MessageSize := MessageSizeType:Data;
@@ -6580,6 +6944,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   out_msg.Type := CoherenceMessageType:UnblockL2;
                   out_msg.Sender := machineID;
                 }
+                  DPRINTF(RubySlicc, "Inviato unblcok linea 6948\n");
                 enqueue(respto_out, CoherenceMessage, responseLatency) {
                   out_msg.LineAddress := LineAddress;
                   out_msg.MessageSize := MessageSizeType:Data;
@@ -6682,7 +7047,7 @@ machine(MachineType:L2Cache, "Proxy cache controller")
             if (in_msg.Type == CoherenceMessageType:WBL1) {
               if (in_msg.Sender == getEntry(LineAddress).ownerL1) {
                 setCacheBlock(tbe, getEntry(LineAddress), LineAddress, in_msg.cl);
-                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__M);
+                setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__O);
                 DPRINTF(RubySlicc, "Popping %s %s on respfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 respfrom_in.dequeue(clockEdge());
                 trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
@@ -6902,6 +7267,11 @@ machine(MachineType:L2Cache, "Proxy cache controller")
             }
           } else if (st == State:evictI__C__O_evict) {
             if (in_msg.Type == CoherenceMessageType:PutO_AckL2) {
+              setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
+              tbe.dirty := false;
+              respfrom_in.dequeue(clockEdge());
+              trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+            } else if (in_msg.Type == CoherenceMessageType:PutM_AckL2) {
               setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
               tbe.dirty := false;
               respfrom_in.dequeue(clockEdge());
@@ -11172,22 +11542,145 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
                 }
               }
-              enqueue(reqto_out, CoherenceMessage, responseLatency) {
-                out_msg.LineAddress := LineAddress;
-                out_msg.MessageSize := MessageSizeType:Control;
-                out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
-                out_msg.Type := CoherenceMessageType:GetML2;
-                out_msg.Sender := machineID;
-              }
-              tbe.acksReceivedL2 := 0;
               getEntry(LineAddress).proxy_msgL1_src := in_msg.Sender;
-              getEntry(LineAddress).proxy_msgL1_acksExpectedL2 := in_msg.acksExpectedL2;
-              getEntry(LineAddress).proxy_msgL1_exclusiveL2 := in_msg.exclusiveL2;
-              cache.setMRU(LineAddress);
-              setState(tbe, getEntry(LineAddress), LineAddress, State:GetML1S__C__O_store);
-              DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
-              reqfrom_in.dequeue(clockEdge());
-              trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+              if (getEntry(LineAddress).cacheL1.isElement(getEntry(LineAddress).proxy_msgL1_src)) {
+                getEntry(LineAddress).cacheL1.remove(getEntry(LineAddress).proxy_msgL1_src);
+                if (getEntry(LineAddress).cacheL1.count() == 0) {
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL1_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_DL1;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  getEntry(LineAddress).ownerL1 := getEntry(LineAddress).proxy_msgL1_src;
+                  getEntry(LineAddress).cacheL1.clear();
+                  cache.setMRU(LineAddress);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                }
+                else if (getEntry(LineAddress).cacheL1.count() != 0) {
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL1_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_ADL1;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                    out_msg.acksExpectedL1 := getEntry(LineAddress).cacheL1.count();
+                  }
+                  enqueue(fwdto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Control;
+                    out_msg.Destination := getEntry(LineAddress).cacheL1;
+                    out_msg.Type := CoherenceMessageType:InvL1;
+                    out_msg.Sender := getEntry(LineAddress).proxy_msgL1_src;
+                  }
+                  getEntry(LineAddress).ownerL1 := getEntry(LineAddress).proxy_msgL1_src;
+                  getEntry(LineAddress).cacheL1.clear();
+                  cache.setMRU(LineAddress);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+              else if (getEntry(LineAddress).cacheL1.isElement(getEntry(LineAddress).proxy_msgL1_src) == false) {
+                if (getEntry(LineAddress).cacheL1.count() == 0) {
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL1_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_DL1;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  getEntry(LineAddress).ownerL1 := getEntry(LineAddress).proxy_msgL1_src;
+                  getEntry(LineAddress).cacheL1.clear();
+                  cache.setMRU(LineAddress);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                }
+                else if (getEntry(LineAddress).cacheL1.count() != 0) {
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL1_src);
+                    out_msg.Type := CoherenceMessageType:GetM_Ack_ADL1;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                    out_msg.acksExpectedL1 := getEntry(LineAddress).cacheL1.count();
+                  }
+                  enqueue(fwdto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Control;
+                    out_msg.Destination := getEntry(LineAddress).cacheL1;
+                    out_msg.Type := CoherenceMessageType:InvL1;
+                    out_msg.Sender := getEntry(LineAddress).proxy_msgL1_src;
+                  }
+                  getEntry(LineAddress).ownerL1 := getEntry(LineAddress).proxy_msgL1_src;
+                  getEntry(LineAddress).cacheL1.clear();
+                  cache.setMRU(LineAddress);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:M__C__M);
+                  DPRINTF(RubySlicc, "Popping %s %s on reqfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  reqfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                }
+              }
+              
             } else if (in_msg.Type == CoherenceMessageType:GetSIfetchL1) {
               getEntry(LineAddress).proxy_msgL1_src := in_msg.Sender;
               getEntry(LineAddress).proxy_msgL1_acksExpectedL2 := in_msg.acksExpectedL2;
@@ -11688,15 +12181,15 @@ machine(MachineType:L2Cache, "Proxy cache controller")
       poprespfrom_in;
     }
     
-    transition({E__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Stallfwdfrom_in) {
+    transition({E__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Stallfwdfrom_in) {
       recyclefwdfrom_in;
     }
     
-    transition({E__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Stallreqfrom_in) {
+    transition({E__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Stallreqfrom_in) {
       recyclereqfrom_in;
     }
     
-    transition({E__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Stallrespfrom_in) {
+    transition({E__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Stallrespfrom_in) {
       recyclerespfrom_in;
     }
     
@@ -11705,19 +12198,19 @@ machine(MachineType:L2Cache, "Proxy cache controller")
       deallocEntry;
     }
     
-    transition({E__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, allocCacheEntry) {
+    transition({E__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, allocCacheEntry) {
       allocEntry;
     }
     
-    transition({E__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, allocTBE) {
+    transition({E__C__M, Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, allocTBE) {
       a_allocTBE;
     }
     
-    transition({E__C__M,Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M,  evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, deallocTBE) {
+    transition({E__C__M,Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M,  evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, deallocTBE) {
       a_deallocTBE;
     }
     
-    transition({E__C__M,Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M,  evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Progress) {
+    transition({E__C__M,Fwd_GetML2dO_GetM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dO_GetM_x_pI_store_GetM_Ack_AD__C__M,  evictdO_GetM_x_pI_store_GetM_Ack_AD__C__O, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__M, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__E, evictdO_GetM_x_pI_store_GetM_Ack_AD__C__S, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__M_store, Fwd_GetML2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetML2dM_x_pI_store__C__E, Fwd_GetML2dM_x_pI_store__C__M, Fwd_GetML2dM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pI_store__C__E, Fwd_GetML2dO_GetM_x_pI_store__C__M, Fwd_GetML2dO_GetM_x_pI_store__C__O, Fwd_GetML2dO_GetM_x_pM__C__E, Fwd_GetML2dO_GetM_x_pM__C__M, Fwd_GetML2dO_GetM_x_pM__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__E, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__M, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O, Fwd_GetSL2dM_x_pI_store_GetM_Ack_AD__C__O_store, Fwd_GetSL2dM_x_pI_store__C__E, Fwd_GetSL2dM_x_pI_store__C__M, Fwd_GetSL2dM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pI_store__C__E, Fwd_GetSL2dO_GetM_x_pI_store__C__M, Fwd_GetSL2dO_GetM_x_pI_store__C__O, Fwd_GetSL2dO_GetM_x_pM__C__E, Fwd_GetSL2dO_GetM_x_pM__C__M, Fwd_GetSL2dO_GetM_x_pM__C__O, GetML1I__C__I_store, GetML1I__C__I_store_GetM_Ack_AD, GetML1I__C__O_store, GetML1I__C__O_store_GetM_Ack_AD, GetML1I__C__S_store, GetML1I__C__S_store_GetM_Ack_AD, GetML1O_GetM__C__M, GetML1O__C__I_store, GetML1O__C__I_store_GetM_Ack_AD, GetML1O__C__O_store, GetML1O__C__O_store_GetM_Ack_AD, GetML1O__C__S_store, GetML1O__C__S_store_GetM_Ack_AD, GetML1S__C__I_store, GetML1S__C__I_store_GetM_Ack_AD, GetML1S__C__O_store, GetML1S__C__O_store_GetM_Ack_AD, GetML1S__C__S_store, GetML1S__C__S_store_GetM_Ack_AD, GetSIfetchL1E_GetSIfetch__C__M, GetSIfetchL1I__C__I_load, GetSIfetchL1M_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__E, GetSIfetchL1O_GetSIfetch__C__M, GetSIfetchL1O_GetSIfetch__C__O, GetSIfetchL1O_GetSIfetch__C__S, GetSL1E_GetS__C__M, GetSL1I__C__I_store, GetSL1I__C__I_store_GetM_Ack_AD, GetSL1I__C__O_store, GetSL1I__C__O_store_GetM_Ack_AD, GetSL1I__C__S_store, GetSL1I__C__S_store_GetM_Ack_AD, GetSL1M_GetS__C__M, GetSL1O_GetS__C__E, GetSL1O_GetS__C__M, GetSL1O_GetS__C__O, GetSL1O_GetS__C__S, I__C__E, I__C__I, I__C__M, I__C__O, I__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S, InvL2dM_x_pI_store_GetM_Ack_AD__C__S_store, InvL2dM_x_pI_store__C__S, InvL2dO_GetM_x_pI_store__C__S, InvL2dO_GetM_x_pM__C__S, M__C__M, O__C__E, O__C__M, O__C__O, O__C__S, S__C__E, S__C__M, S__C__O, S__C__S, evictI__C__E_evict, evictI__C__I_evict, evictI__C__M_evict, evictI__C__O_evict, evictI__C__S_evict, evictdM_x_pI_store_GetM_Ack_AD__C__E, evictdM_x_pI_store_GetM_Ack_AD__C__M, evictdM_x_pI_store_GetM_Ack_AD__C__O, evictdM_x_pI_store_GetM_Ack_AD__C__S, evictdM_x_pI_store__C__E, evictdM_x_pI_store__C__M, evictdM_x_pI_store__C__O, evictdM_x_pI_store__C__S, evictdO_GetM_x_pI_store__C__E, evictdO_GetM_x_pI_store__C__M, evictdO_GetM_x_pI_store__C__O, evictdO_GetM_x_pI_store__C__S, evictdO_GetM_x_pM__C__E, evictdO_GetM_x_pM__C__M, evictdO_GetM_x_pM__C__O, evictdO_GetM_x_pM__C__S}, Progress) {
       empty;
     }
 }
