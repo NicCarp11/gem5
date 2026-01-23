@@ -44,6 +44,7 @@ enumeration(CoherenceMessageType, desc="Types of coherence messages") {
   PutSL2, desc="PutSL2";
   PutS_AckL1, desc="PutS_AckL1";
   PutS_AckL2, desc="PutS_AckL2";
+  UnblockL2, desc="UnblockL2";
   WBL1, desc="WBL1";
   WBL2, desc="WBL2";
 }

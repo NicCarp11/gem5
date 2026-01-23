@@ -560,6 +560,32 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__I);
                   trigger(Event:deallocfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
                 }
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
+              getEntry(LineAddress).ownerL1 := machineID;
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetS_AckL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                    out_msg.Type := CoherenceMessageType:UnblockL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:I__C__S);
+                  DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  fwdfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                }
             } else {
               trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
             }
@@ -1229,6 +1255,32 @@ machine(MachineType:L2Cache, "Proxy cache controller")
                   }
                 }
               }
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
+              getEntry(LineAddress).ownerL1 := machineID;
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetS_AckL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                    out_msg.Type := CoherenceMessageType:UnblockL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:S__C__S);
+                  DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  fwdfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                }
             } else {
               trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
             }
@@ -1321,6 +1373,32 @@ machine(MachineType:L2Cache, "Proxy cache controller")
               DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               fwdfrom_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, getEntry(LineAddress), tbe);
+            } else if (in_msg.Type == CoherenceMessageType:Fwd_GetSL2) {
+              getEntry(LineAddress).ownerL1 := machineID;
+                getEntry(LineAddress).cacheL1.remove(machineID);
+                if (getEntry(LineAddress).ownerL1 == machineID) {
+                  getEntry(LineAddress).proxy_msgL2_src := in_msg.Sender;
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(getEntry(LineAddress).proxy_msgL2_src);
+                    out_msg.Type := CoherenceMessageType:GetS_AckL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  enqueue(respto_out, CoherenceMessage, responseLatency) {
+                    out_msg.LineAddress := LineAddress;
+                    out_msg.MessageSize := MessageSizeType:Data;
+                    out_msg.Destination.add(mapAddressToMachine(LineAddress, MachineType:Directory));
+                    out_msg.Type := CoherenceMessageType:UnblockL2;
+                    out_msg.Sender := machineID;
+                    out_msg.cl := getCacheBlock(tbe, getEntry(LineAddress), LineAddress);
+                  }
+                  setState(tbe, getEntry(LineAddress), LineAddress, State:evictI__C__S_evict);
+                  DPRINTF(RubySlicc, "Popping %s %s on fwdfrom_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                  fwdfrom_in.dequeue(clockEdge());
+                  trigger(Event:deallocTBE, LineAddress, getEntry(LineAddress), tbe);
+                }
             } else {
               trigger(Event:Stallfwdfrom_in, LineAddress, getEntry(LineAddress), tbe);
             }
@@ -4896,8 +4974,8 @@ machine(MachineType:L2Cache, "Proxy cache controller")
     
     action(recyclefwdfrom_in, "rfwdfrom_in0", desc="Recycle the fwdfrom_in port") {
       DPRINTF(RubySlicc, "Stalling fwdfrom_in (addr: %#x)\n", address);
-      // fwdfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
-      stall_and_wait(fwdfrom_in, address);
+      fwdfrom_in.recycle(clockEdge(), cyclesToTicks(recycleLatency));
+      // stall_and_wait(fwdfrom_in, address);
     }
     
     action(popreqfrom_in, "preqfrom_in0", desc="Pop the reqfrom_in queue.") {

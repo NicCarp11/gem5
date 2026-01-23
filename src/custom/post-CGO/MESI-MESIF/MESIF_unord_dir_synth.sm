@@ -24,14 +24,13 @@ machine(MachineType:Directory, "Directory protocol")
   //Backend.SLICC.ModularSLICC.dir.GenDirStateDecl
   state_declaration(State, desc="Directory states", default="Directory_State_I") {
     E, AccessPermission:Maybe_Stale, desc="... TODO ...";
-    F, AccessPermission:Maybe_Stale, desc="....TODO....";
     E_GetS, AccessPermission:Read_Only, desc="... TODO ...";
     E_GetSIfetch, AccessPermission:Read_Only, desc="... TODO ...";
     I, AccessPermission:Read_Write, desc="... TODO ...";
     M, AccessPermission:Maybe_Stale, desc="... TODO ...";
     M_GetS, AccessPermission:Read_Only, desc="... TODO ...";
     M_GetSIfetch, AccessPermission:Read_Only, desc="... TODO ...";
-    S, AccessPermission:Read_Only, desc="... TODO ...";
+    F, AccessPermission:Read_Only, desc="... TODO ...";
     E_GetS_WBL2_0, AccessPermission:Read_Only, desc="... TODO ...";
     E_GetSIfetch_WBL2_0, AccessPermission:Read_Only, desc="... TODO ...";
     M_GetS_WBL2_0, AccessPermission:Read_Only, desc="... TODO ...";
@@ -74,12 +73,14 @@ machine(MachineType:Directory, "Directory protocol")
     DataBlock cl, desc="... TODO ...";
     NetDest cacheL2, desc="... TODO ...";
     MachineID ownerL2, desc="... TODO ...";
+    MachineID ForwarderL2, desc="...TODO...";
+    MachineID prevForwarderL2, desc="...TODO...";
   }
   
   //Backend.SLICC.ModularSLICC.dir.GenDirTBE
   structure(TBE, desc="TBE entries for Directory machine") {
     State TBEState,       desc="Transient State";
-    DataBlock cl, desc="... TODO ...";
+      DataBlock cl, desc="... TODO ...";
 
     bool dirty, desc="... TODO ...";
   }
@@ -175,13 +176,22 @@ machine(MachineType:Directory, "Directory protocol")
         if (st == State:E_GetS_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
+        if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
+          setState(tbe, LineAddress, State:F);
           trigger(Event:deallocTBE, LineAddress, tbe);
         } else if (st == State:E_GetSIfetch_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
+          if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
@@ -189,6 +199,10 @@ machine(MachineType:Directory, "Directory protocol")
         } else if (st == State:M_GetS_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
+           if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
@@ -196,6 +210,10 @@ machine(MachineType:Directory, "Directory protocol")
         } else if (st == State:M_GetSIfetch_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
+           if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
@@ -233,7 +251,10 @@ machine(MachineType:Directory, "Directory protocol")
             out_msg.Sender := machineID;
             out_msg.cl := in_msg.DataBlk;
           }
-          getEntry(LineAddress).cl := in_msg.DataBlk;
+          if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          } 
           getEntry(LineAddress).cacheL2.add(in_msg.OriginalRequestorMachId);
           setState(tbe, LineAddress, State:F);
           
@@ -355,36 +376,6 @@ machine(MachineType:Directory, "Directory protocol")
           
           memQueue_in.dequeue(clockEdge());
           trigger(Event:deallocTBE, LineAddress, tbe);
-        } else if (st == State:S_GetSIfetchL2_0 
-              && in_msg.Type == MemoryRequestType:MEMORY_READ) {
-          enqueue(respfrom_out, CoherenceMessage, responseLatency) {
-            out_msg.LineAddress := LineAddress;
-            out_msg.MessageSize := MessageSizeType:Data;
-            out_msg.Destination.add(in_msg.OriginalRequestorMachId);
-            out_msg.Type := CoherenceMessageType:GetS_AckL2;
-            out_msg.Sender := machineID;
-            out_msg.cl := in_msg.DataBlk;
-          }
-          getEntry(LineAddress).cacheL2.add(in_msg.OriginalRequestorMachId);
-          setState(tbe, LineAddress, State:F);
-          
-          memQueue_in.dequeue(clockEdge());
-          trigger(Event:deallocTBE, LineAddress, tbe);
-        } else if (st == State:S_GetSL2_0 
-              && in_msg.Type == MemoryRequestType:MEMORY_READ) {
-          enqueue(respfrom_out, CoherenceMessage, responseLatency) {
-            out_msg.LineAddress := LineAddress;
-            out_msg.MessageSize := MessageSizeType:Data;
-            out_msg.Destination.add(in_msg.OriginalRequestorMachId);
-            out_msg.Type := CoherenceMessageType:GetS_AckL2;
-            out_msg.Sender := machineID;
-            out_msg.cl := in_msg.DataBlk;
-          }
-          getEntry(LineAddress).cacheL2.add(in_msg.OriginalRequestorMachId);
-          setState(tbe, LineAddress, State:F);
-          
-          memQueue_in.dequeue(clockEdge());
-          trigger(Event:deallocTBE, LineAddress, tbe);
         } else {
           trigger(Event:StallmemQueue_in, LineAddress, tbe);}
       }
@@ -422,7 +413,6 @@ machine(MachineType:Directory, "Directory protocol")
                   trigger(Event:Progress, LineAddress, tbe);
                 }
               }
-              getEntry(LineAddress).cl := in_msg.cl;
               tbe.cl := in_msg.cl;
               tbe.dirty := true;
               enqueue(memQueue_out, MemoryMsg, toMemLatency) {
@@ -469,14 +459,12 @@ machine(MachineType:Directory, "Directory protocol")
                 out_msg.DataBlk := in_msg.cl;
                 out_msg.Len := 0;
               }
-              getEntry(LineAddress).cl := in_msg.cl;
               setState(tbe, LineAddress, State:E_GetSIfetch_WBL2_0);
               DPRINTF(RubySlicc, "Popping %s %s on respto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               respto_in.dequeue(clockEdge());
               trigger(Event:Progress, LineAddress, tbe);
             }
             else if (in_msg.Sender != getEntry(LineAddress).ownerL2) {
-              getEntry(LineAddress).cl := in_msg.cl;
               setState(tbe, LineAddress, State:E_GetSIfetch);
               DPRINTF(RubySlicc, "Popping %s %s on respto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               respto_in.dequeue(clockEdge());
@@ -499,7 +487,6 @@ machine(MachineType:Directory, "Directory protocol")
               }
               tbe.cl := in_msg.cl;
               tbe.dirty := true;
-              getEntry(LineAddress).cl := in_msg.cl;
               enqueue(memQueue_out, MemoryMsg, toMemLatency) {
                 out_msg.addr := LineAddress;
                 out_msg.Type := MemoryRequestType:MEMORY_WB;
@@ -514,7 +501,6 @@ machine(MachineType:Directory, "Directory protocol")
               trigger(Event:Progress, LineAddress, tbe);
             }
             else if (in_msg.Sender != getEntry(LineAddress).ownerL2) {
-              getEntry(LineAddress).cl := in_msg.cl;
               setState(tbe, LineAddress, State:M_GetS);
               DPRINTF(RubySlicc, "Popping %s %s on respto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
               respto_in.dequeue(clockEdge());
@@ -535,7 +521,6 @@ machine(MachineType:Directory, "Directory protocol")
                   trigger(Event:Progress, LineAddress, tbe);
                 }
               }
-              getEntry(LineAddress).cl := in_msg.cl;
               tbe.cl := in_msg.cl;
               tbe.dirty := true;
               enqueue(memQueue_out, MemoryMsg, toMemLatency) {
@@ -560,7 +545,25 @@ machine(MachineType:Directory, "Directory protocol")
           } else {
             trigger(Event:Stallrespto_in, LineAddress, tbe);
           }
-        } else {
+        } else if (st == State:S_GetSIfetchL2_0) {
+          if (in_msg.Type == CoherenceMessageType:UnblockL2) {
+            if (in_msg.Sender == getEntry(LineAddress).prevForwarderL2){
+              setState(tbe, LineAddress, State:F);
+              DPRINTF(RubySlicc, "Popping %s %s on respto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              respto_in.dequeue(clockEdge());
+              trigger(Event:deallocTBE, LineAddress, tbe);
+            }
+            }
+            } else if (st == State:S_GetSL2_0) {
+          if (in_msg.Type == CoherenceMessageType:UnblockL2) {
+            if (in_msg.Sender == getEntry(LineAddress).prevForwarderL2){
+              setState(tbe, LineAddress, State:F);
+              DPRINTF(RubySlicc, "Popping %s %s on respto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+              respto_in.dequeue(clockEdge());
+              trigger(Event:deallocTBE, LineAddress, tbe);
+            }
+            }
+            } else {
           trigger(Event:Stallrespto_in, LineAddress, tbe);
         }
       }
@@ -607,6 +610,8 @@ machine(MachineType:Directory, "Directory protocol")
             }
             getEntry(LineAddress).cacheL2.add(in_msg.Sender);
             getEntry(LineAddress).cacheL2.add(getEntry(LineAddress).ownerL2);
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ownerL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
             setState(tbe, LineAddress, State:E_GetSIfetch);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
@@ -630,6 +635,8 @@ machine(MachineType:Directory, "Directory protocol")
             }
             getEntry(LineAddress).cacheL2.add(in_msg.Sender);
             getEntry(LineAddress).cacheL2.add(getEntry(LineAddress).ownerL2);
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ownerL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
             setState(tbe, LineAddress, State:E_GetS);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
@@ -883,6 +890,8 @@ machine(MachineType:Directory, "Directory protocol")
             }
             getEntry(LineAddress).cacheL2.add(in_msg.Sender);
             getEntry(LineAddress).cacheL2.add(getEntry(LineAddress).ownerL2);
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ownerL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
             setState(tbe, LineAddress, State:M_GetSIfetch);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
@@ -906,6 +915,8 @@ machine(MachineType:Directory, "Directory protocol")
             }
             getEntry(LineAddress).cacheL2.add(in_msg.Sender);
             getEntry(LineAddress).cacheL2.add(getEntry(LineAddress).ownerL2);
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ownerL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
             setState(tbe, LineAddress, State:M_GetS);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
@@ -1114,33 +1125,33 @@ machine(MachineType:Directory, "Directory protocol")
               }
             }  
           } else if (in_msg.Type == CoherenceMessageType:GetSIfetchL2) {
-            enqueue(respfrom_out, CoherenceMessage, responseLatency) {
-            out_msg.LineAddress := LineAddress;
-            out_msg.MessageSize := MessageSizeType:Data;
-            out_msg.Destination.add(in_msg.Sender);
-            out_msg.Type := CoherenceMessageType:GetS_AckL2;
-            out_msg.Sender := machineID;
-            out_msg.cl := getEntry(LineAddress).cl;
-          }
-            getEntry(LineAddress).cacheL2.add(in_msg.Sender);
-            setState(tbe, LineAddress, State:F);
+            enqueue(fwdfrom_out, CoherenceMessage, responseLatency) {
+              out_msg.LineAddress := LineAddress;
+              out_msg.MessageSize := MessageSizeType:Control;
+              out_msg.Destination.add(getEntry(LineAddress).ForwarderL2);
+              out_msg.Type := CoherenceMessageType:Fwd_GetSL2;
+              out_msg.Sender := in_msg.Sender;
+            }
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
+            setState(tbe, LineAddress, State:S_GetSIfetchL2_0);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
-            trigger(Event:deallocTBE, LineAddress, tbe);  
+            trigger(Event:Progress, LineAddress, tbe);  
           } else if (in_msg.Type == CoherenceMessageType:GetSL2) {
-            enqueue(respfrom_out, CoherenceMessage, responseLatency) {
-            out_msg.LineAddress := LineAddress;
-            out_msg.MessageSize := MessageSizeType:Data;
-            out_msg.Destination.add(in_msg.Sender);
-            out_msg.Type := CoherenceMessageType:GetS_AckL2;
-            out_msg.Sender := machineID;
-            out_msg.cl := getEntry(LineAddress).cl;
-          }
-            getEntry(LineAddress).cacheL2.add(in_msg.Sender);
-            setState(tbe, LineAddress, State:F);
+            enqueue(fwdfrom_out, CoherenceMessage, responseLatency) {
+              out_msg.LineAddress := LineAddress;
+              out_msg.MessageSize := MessageSizeType:Control;
+              out_msg.Destination.add(getEntry(LineAddress).ForwarderL2);
+              out_msg.Type := CoherenceMessageType:Fwd_GetSL2;
+              out_msg.Sender := in_msg.Sender;
+            }
+            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+            getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
+            setState(tbe, LineAddress, State:S_GetSL2_0);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
-            trigger(Event:deallocTBE, LineAddress, tbe); 
+            trigger(Event:Progress, LineAddress, tbe);  
           } else if (in_msg.Type == CoherenceMessageType:PutEL2) {
             if (getEntry(LineAddress).ownerL2 == in_msg.Sender) {
               enqueue(respfrom_out, CoherenceMessage, responseLatency) {
@@ -1230,7 +1241,7 @@ machine(MachineType:Directory, "Directory protocol")
               }
             }  
           } else if (in_msg.Type == CoherenceMessageType:PutSL2) {
-            if (getEntry(LineAddress).cacheL2.isElement(in_msg.Sender)) {
+            if (in_msg.Sender == getEntry(LineAddress).ForwarderL2) {
               enqueue(respfrom_out, CoherenceMessage, responseLatency) {
                 out_msg.LineAddress := LineAddress;
                 out_msg.MessageSize := MessageSizeType:Control;
@@ -1246,20 +1257,21 @@ machine(MachineType:Directory, "Directory protocol")
                 trigger(Event:deallocTBE, LineAddress, tbe);
               }
               else if (getEntry(LineAddress).cacheL2.count() != 0) {
+                getEntry(LineAddress).ForwarderL2 := getEntry(LineAddress).prevForwarderL2;
                 setState(tbe, LineAddress, State:F);
                 DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 reqto_in.dequeue(clockEdge());
                 trigger(Event:deallocTBE, LineAddress, tbe);
               }
-            }
-            else if (getEntry(LineAddress).cacheL2.isElement(in_msg.Sender) == false) {
+            } else if (in_msg.Sender == getEntry(LineAddress).prevForwarderL2) {
               enqueue(respfrom_out, CoherenceMessage, responseLatency) {
                 out_msg.LineAddress := LineAddress;
                 out_msg.MessageSize := MessageSizeType:Control;
                 out_msg.Destination.add(in_msg.Sender);
-                out_msg.Type := CoherenceMessageType:PutI_AckL2;
+                out_msg.Type := CoherenceMessageType:PutS_AckL2;
                 out_msg.Sender := machineID;
               }
+              getEntry(LineAddress).cacheL2.remove(in_msg.Sender);
               if (getEntry(LineAddress).cacheL2.count() == 0) {
                 setState(tbe, LineAddress, State:I);
                 DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
@@ -1267,12 +1279,35 @@ machine(MachineType:Directory, "Directory protocol")
                 trigger(Event:deallocTBE, LineAddress, tbe);
               }
               else if (getEntry(LineAddress).cacheL2.count() != 0) {
+                // getEntry(LineAddress).ForwarderL2 := getEntry(LineAddress).prevForwarderL2;
                 setState(tbe, LineAddress, State:F);
                 DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
                 reqto_in.dequeue(clockEdge());
                 trigger(Event:deallocTBE, LineAddress, tbe);
               }
-            }
+            } else if (in_msg.Sender != getEntry(LineAddress).prevForwarderL2 && in_msg.Sender != getEntry(LineAddress).ForwarderL2) {
+              enqueue(respfrom_out, CoherenceMessage, responseLatency) {
+                out_msg.LineAddress := LineAddress;
+                out_msg.MessageSize := MessageSizeType:Control;
+                out_msg.Destination.add(in_msg.Sender);
+                out_msg.Type := CoherenceMessageType:PutS_AckL2;
+                out_msg.Sender := machineID;
+              }
+              getEntry(LineAddress).cacheL2.remove(in_msg.Sender);
+              if (getEntry(LineAddress).cacheL2.count() == 0) {
+                setState(tbe, LineAddress, State:I);
+                DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                reqto_in.dequeue(clockEdge());
+                trigger(Event:deallocTBE, LineAddress, tbe);
+              }
+              else if (getEntry(LineAddress).cacheL2.count() != 0) {
+                // getEntry(LineAddress).ForwarderL2 := getEntry(LineAddress).prevForwarderL2;
+                setState(tbe, LineAddress, State:F);
+                DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
+                reqto_in.dequeue(clockEdge());
+                trigger(Event:deallocTBE, LineAddress, tbe);
+              }
+            } 
           } else {
             trigger(Event:Stallreqto_in, LineAddress, tbe);
           }
