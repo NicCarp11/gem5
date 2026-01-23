@@ -1134,6 +1134,7 @@ machine(MachineType:Directory, "Directory protocol")
             }
             getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
             getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
+            getEntry(LineAddress).cacheL2.add(in_msg.Sender);
             setState(tbe, LineAddress, State:S_GetSIfetchL2_0);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
@@ -1148,6 +1149,7 @@ machine(MachineType:Directory, "Directory protocol")
             }
             getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
             getEntry(LineAddress).ForwarderL2 := in_msg.Sender;
+            getEntry(LineAddress).cacheL2.add(in_msg.Sender);
             setState(tbe, LineAddress, State:S_GetSL2_0);
             DPRINTF(RubySlicc, "Popping %s %s on reqto_in (addr: %#x)\n", in_msg.Type, in_msg.Sender, LineAddress);
             reqto_in.dequeue(clockEdge());
