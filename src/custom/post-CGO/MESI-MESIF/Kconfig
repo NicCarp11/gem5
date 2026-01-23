@@ -1,0 +1,8 @@
+config PROTOCOL
+    default "MESI_MESIF" if RUBY_MESI_MESIF
+
+
+cont_choice "Ruby protocol"
+    config RUBY_MESI_MESIF
+        bool "MESI_MESIF"
+endchoice
