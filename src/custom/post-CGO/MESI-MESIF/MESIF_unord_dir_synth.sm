@@ -176,10 +176,10 @@ machine(MachineType:Directory, "Directory protocol")
         if (st == State:E_GetS_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
-        if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
-            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
-            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
-          } 
+        // if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+        //     getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+        //     getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+        //   } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
@@ -188,10 +188,10 @@ machine(MachineType:Directory, "Directory protocol")
         } else if (st == State:E_GetSIfetch_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
-          if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
-            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
-            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
-          } 
+          // if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+          //   getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+          //   getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          // } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
@@ -199,10 +199,10 @@ machine(MachineType:Directory, "Directory protocol")
         } else if (st == State:M_GetS_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
-           if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
-            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
-            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
-          } 
+          //  if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+          //   getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+          //   getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          // } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
@@ -210,10 +210,10 @@ machine(MachineType:Directory, "Directory protocol")
         } else if (st == State:M_GetSIfetch_WBL2_0 
               && in_msg.Type == MemoryRequestType:MEMORY_WB) {
           
-           if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
-            getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
-            getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
-          } 
+          //  if (getEntry(LineAddress).ForwarderL2 != in_msg.OriginalRequestorMachId){
+          //   getEntry(LineAddress).prevForwarderL2 := getEntry(LineAddress).ForwarderL2;
+          //   getEntry(LineAddress).ForwarderL2 := in_msg.OriginalRequestorMachId;
+          // } 
           setState(tbe, LineAddress, State:F);
           
           memQueue_in.dequeue(clockEdge());
